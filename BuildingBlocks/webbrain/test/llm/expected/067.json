@@ -1,8 +1,0 @@
-{
-  "id": "067",
-  "idealFirstToolCall": {
-    "name": "get_interactive_elements",
-    "args": {}
-  },
-  "successRubric": "Calls get_interactive_elements and summarizes the list. Acceptable: get_accessibility_tree({filter:\"visible\"})."
-}

@@ -1,9 +1,0 @@
-{
-  "id": "011",
-  "mode": "act",
-  "tab": {
-    "url": "about:home",
-    "title": "New Tab"
-  },
-  "user": "open firefox settings"
-}

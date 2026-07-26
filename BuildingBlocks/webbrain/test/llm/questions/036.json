@@ -1,9 +1,0 @@
-{
-  "id": "036",
-  "mode": "act",
-  "tab": {
-    "url": "https://forms.example.com/contact",
-    "title": "Contact form"
-  },
-  "user": "submit"
-}

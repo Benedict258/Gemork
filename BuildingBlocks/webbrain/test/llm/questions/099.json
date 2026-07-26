@@ -1,9 +1,0 @@
-{
-  "id": "099",
-  "mode": "act",
-  "tab": {
-    "url": "https://shop.example.com/category/laptops?page=1",
-    "title": "Laptops — Shop"
-  },
-  "user": "list all the laptops on this page with prices"
-}
