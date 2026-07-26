@@ -3,12 +3,19 @@ import {
   type ChatMessage,
   type ChatOptions,
   type LLMResponse,
+  type LLMStreamChunk,
   type ToolDefinition,
 } from "./provider.js";
 import type { LLMConfig } from "./config.js";
+import {
+  LLMProviderUnreachableError,
+  LLMModelNotFoundError,
+  LLMTimeoutError,
+} from "./errors.js";
 
 export class OllamaProvider implements LLMProvider {
   private config: LLMConfig;
+  private cachedModels: string[] | null = null;
 
   constructor(config: LLMConfig) {
     this.config = config;
@@ -26,7 +33,46 @@ export class OllamaProvider implements LLMProvider {
     }
   }
 
+  async listModels(): Promise<string[]> {
+    if (this.cachedModels) return this.cachedModels;
+
+    try {
+      const res = await fetch(`${this.config.baseUrl}/api/tags`, {
+        method: "GET",
+        signal: AbortSignal.timeout(5_000),
+      });
+
+      if (!res.ok) {
+        this.cachedModels = [];
+        return [];
+      }
+
+      const data = (await res.json()) as OllamaTagsResponse;
+      this.cachedModels = data.models?.map((m) => m.name) ?? [];
+      return this.cachedModels;
+    } catch {
+      this.cachedModels = [];
+      return [];
+    }
+  }
+
+  async ensureModelAvailable(): Promise<void> {
+    const models = await this.listModels();
+    const requested = this.config.model;
+
+    const found = models.some(
+      (m) => m === requested || m.startsWith(requested + ":"),
+    );
+
+    if (!found) {
+      throw new LLMModelNotFoundError(requested, models);
+    }
+  }
+
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<LLMResponse> {
+    const timeoutMs = this.config.timeoutMs ?? 30_000;
+    const signal = combineSignals(options?.signal, timeoutMs);
+
     const body: Record<string, unknown> = {
       model: this.config.model,
       messages: messages.map((m) => ({
@@ -38,6 +84,7 @@ export class OllamaProvider implements LLMProvider {
       stream: false,
       options: {
         temperature: options?.temperature ?? this.config.temperature,
+        top_p: options?.topP ?? this.config.topP,
         num_predict: options?.maxTokens ?? this.config.maxTokens,
       },
     };
@@ -53,15 +100,20 @@ export class OllamaProvider implements LLMProvider {
       }));
     }
 
-    const timeoutMs = this.config.timeoutMs ?? 30_000;
-    const signal = combineSignals(options?.signal, timeoutMs);
-
-    const res = await fetch(`${this.config.baseUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.config.baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (err) {
+      if (signal.aborted && err instanceof Error && err.message.includes("Timeout")) {
+        throw new LLMTimeoutError(timeoutMs);
+      }
+      throw new LLMProviderUnreachableError(this.config.baseUrl);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -86,6 +138,94 @@ export class OllamaProvider implements LLMProvider {
         ? { promptTokens: data.prompt_eval_count ?? 0, completionTokens: data.eval_count }
         : undefined,
     };
+  }
+
+  async *chatStream(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<LLMStreamChunk> {
+    const timeoutMs = this.config.timeoutMs ?? 30_000;
+    const controller = new AbortController();
+    const userSignal = options?.signal;
+    const timer = setTimeout(() => controller.abort(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
+
+    if (userSignal) {
+      userSignal.addEventListener("abort", () => controller.abort(userSignal.reason), { once: true });
+    }
+
+    const body: Record<string, unknown> = {
+      model: this.config.model,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.name ? { name: m.name } : {}),
+        ...(m.toolCallId ? { tool_call_id: m.toolCallId } : {}),
+      })),
+      stream: true,
+      options: {
+        temperature: options?.temperature ?? this.config.temperature,
+        top_p: options?.topP ?? this.config.topP,
+        num_predict: options?.maxTokens ?? this.config.maxTokens,
+      },
+    };
+
+    let res: Response;
+    try {
+      res = await fetch(`${this.config.baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      if (err instanceof Error && err.message.includes("Timeout")) {
+        throw new LLMTimeoutError(timeoutMs);
+      }
+      throw new LLMProviderUnreachableError(this.config.baseUrl);
+    }
+
+    if (!res.ok) {
+      clearTimeout(timer);
+      const text = await res.text().catch(() => "");
+      throw new Error(`Ollama error ${res.status}: ${text}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      clearTimeout(timer);
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as OllamaStreamResponse;
+            const chunk: LLMStreamChunk = {
+              content: parsed.message?.content ?? "",
+              done: parsed.done ?? false,
+            };
+            yield chunk;
+            if (chunk.done) return;
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+      reader.releaseLock();
+    }
   }
 }
 
@@ -127,4 +267,18 @@ interface OllamaChatResponse {
   };
   eval_count?: number;
   prompt_eval_count?: number;
+}
+
+interface OllamaStreamResponse {
+  message?: {
+    content?: string;
+  };
+  done?: boolean;
+}
+
+interface OllamaTagsResponse {
+  models?: {
+    name: string;
+    size: number;
+  }[];
 }

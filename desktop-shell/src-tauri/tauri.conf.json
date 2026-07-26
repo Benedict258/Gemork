@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../src/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeDevCommand": "cd ../src && npm run dev",
+    "beforeBuildCommand": "cd ../src && npm run build"
   },
   "app": {
     "title": "Gemork",
@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ws://localhost:8080 ws://127.0.0.1:8080 http://localhost:*; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' ws://localhost:8080 ws://127.0.0.1:8080 http://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
@@ -33,6 +33,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "category": "Utility",
+    "shortDescription": "Cowork with Gemma - AI desktop assistant",
+    "longDescription": "Gemork is a desktop application that lets you cowork with Google's Gemma model. It orchestrates AI-driven tasks, manages execution plans, and provides a seamless human-in-the-loop experience."
   }
 }

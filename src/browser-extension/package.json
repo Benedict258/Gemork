@@ -1,0 +1,10 @@
+{
+  "name": "gemork-browser-extension",
+  "version": "1.0.0",
+  "description": "Local-first autonomous AI agent browser extension",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "node scripts/build.js --watch"
+  }
+}

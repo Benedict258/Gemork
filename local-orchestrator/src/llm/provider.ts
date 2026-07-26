@@ -24,6 +24,7 @@ export interface ChatMessage {
 
 export interface ChatOptions {
   temperature?: number;
+  topP?: number;
   maxTokens?: number;
   tools?: ToolDefinition[];
   signal?: AbortSignal;
@@ -40,5 +41,12 @@ export interface ToolDefinition {
 
 export interface LLMProvider {
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<LLMResponse>;
+  chatStream?(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<LLMStreamChunk>;
   isAvailable(): Promise<boolean>;
+  listModels?(): Promise<string[]>;
+}
+
+export interface LLMStreamChunk {
+  content: string;
+  done: boolean;
 }

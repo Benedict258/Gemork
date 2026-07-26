@@ -102,3 +102,40 @@ export type {
   FileContext,
   PlanContext,
 } from "./rag/index.js";
+
+// Error types
+export {
+  GemorkError,
+  LLMError,
+  ConnectorError,
+  GuardrailError,
+  StorageError,
+  SnapshotError,
+  isGemorkError,
+  isLLMError,
+  isConnectorError,
+  isGuardrailError,
+  isStorageError,
+  isSnapshotError,
+} from "./errors.js";
+export type {
+  LLMErrorCode as GemorkLLMErrorCode,
+  ConnectorErrorCode,
+  GuardrailErrorCode,
+  StorageErrorCode,
+  SnapshotErrorCode,
+} from "./errors.js";
+
+// Middleware
+export {
+  createErrorHandler,
+  createAsyncHandler,
+  onError,
+  createLogger,
+  setLogLevel,
+  getLogLevel,
+  healthCheckHandler,
+  registerHealthCheck,
+  createDefaultHealthChecks,
+} from "./middleware/index.js";
+export type { ErrorEvent, LogLevel, Logger, LogEntry, ModuleHealth, HealthChecker } from "./middleware/index.js";

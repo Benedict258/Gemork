@@ -283,7 +283,13 @@ export class TaskEngine {
   // ── Plan Generation ──────────────────────────────────────
 
   private async generatePlan(goal: Goal): Promise<Plan> {
+    const startTime = Date.now();
+    console.log(`[task-engine] Generating plan for goal: "${goal.text}"`);
+
     const outputs = await this.llmGenerator.generatePlan(goal.text);
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[task-engine] Plan generated in ${elapsed}ms with ${outputs.length} steps`);
 
     const steps = outputs.map((output) =>
       createPlanStep(goal.id, output.description, output.tier, {

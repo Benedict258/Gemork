@@ -22,8 +22,25 @@ interface UseOrchestratorReturn {
   reconnect: () => void;
 }
 
-const WS_URL = "ws://localhost:8080";
+const WS_URL_FALLBACK = "ws://localhost:8080";
 const RECONNECT_DELAY = 3000;
+
+async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
+    return await tauriInvoke<T>(cmd, args);
+  } catch {
+    throw new Error("Tauri IPC not available - running in browser mode");
+  }
+}
+
+async function getWsUrl(): Promise<string> {
+  try {
+    return await invoke<string>("get_ws_url");
+  } catch {
+    return WS_URL_FALLBACK;
+  }
+}
 
 export function useOrchestrator(): UseOrchestratorReturn {
   const wsRef = useRef<WebSocket | null>(null);
@@ -126,32 +143,35 @@ export function useOrchestrator(): UseOrchestratorReturn {
     }
 
     setConnected("reconnecting");
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
 
-    ws.onopen = () => {
-      setConnected("connected");
-      reconnectAttempt.current = 0;
-    };
+    getWsUrl().then((wsUrl) => {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-    ws.onmessage = (msg) => {
-      try {
-        const event: OrchestratorEvent = JSON.parse(msg.data);
-        handleEvent(event);
-      } catch {
-        console.warn("[WS] Failed to parse message:", msg.data);
-      }
-    };
+      ws.onopen = () => {
+        setConnected("connected");
+        reconnectAttempt.current = 0;
+      };
 
-    ws.onclose = () => {
-      setConnected("disconnected");
-      wsRef.current = null;
-      scheduleReconnect();
-    };
+      ws.onmessage = (msg) => {
+        try {
+          const event: OrchestratorEvent = JSON.parse(msg.data);
+          handleEvent(event);
+        } catch {
+          console.warn("[WS] Failed to parse message:", msg.data);
+        }
+      };
 
-    ws.onerror = () => {
-      ws.close();
-    };
+      ws.onclose = () => {
+        setConnected("disconnected");
+        wsRef.current = null;
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    });
   }, [handleEvent]);
 
   const scheduleReconnect = useCallback(() => {
@@ -185,39 +205,58 @@ export function useOrchestrator(): UseOrchestratorReturn {
   }, []);
 
   const submitGoal = useCallback(
-    (goalText: string) => {
-      const msg: GoalSubmittedMessage = {
-        type: "goal:submitted",
-        goalText,
-      };
-      send(msg);
+    async (goalText: string) => {
+      try {
+        await invoke("submit_goal", { goalText });
+      } catch {
+        const msg: GoalSubmittedMessage = {
+          type: "goal:submitted",
+          goalText,
+        };
+        send(msg);
+      }
     },
     [send],
   );
 
-  const approveStep = useCallback(() => {
+  const approveStep = useCallback(async () => {
     if (!pendingApproval) return;
-    const msg: ApprovalResponseMessage = {
-      type: "approval:response",
-      planId: pendingApproval.planId,
-      stepId: pendingApproval.step.id,
-      approved: true,
-    };
-    send(msg);
-    setPendingApproval(null);
-  }, [send, pendingApproval]);
-
-  const rejectStep = useCallback(
-    (reason?: string) => {
-      if (!pendingApproval) return;
+    try {
+      await invoke("approve_step", {
+        planId: pendingApproval.planId,
+        stepId: pendingApproval.step.id,
+      });
+    } catch {
       const msg: ApprovalResponseMessage = {
         type: "approval:response",
         planId: pendingApproval.planId,
         stepId: pendingApproval.step.id,
-        approved: false,
-        reason,
+        approved: true,
       };
       send(msg);
+    }
+    setPendingApproval(null);
+  }, [send, pendingApproval]);
+
+  const rejectStep = useCallback(
+    async (reason?: string) => {
+      if (!pendingApproval) return;
+      try {
+        await invoke("reject_step", {
+          planId: pendingApproval.planId,
+          stepId: pendingApproval.step.id,
+          reason: reason ?? null,
+        });
+      } catch {
+        const msg: ApprovalResponseMessage = {
+          type: "approval:response",
+          planId: pendingApproval.planId,
+          stepId: pendingApproval.step.id,
+          approved: false,
+          reason,
+        };
+        send(msg);
+      }
       setPendingApproval(null);
     },
     [send, pendingApproval],

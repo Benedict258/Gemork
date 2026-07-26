@@ -49,3 +49,6 @@ coverage/
 # Reference repos (local study only, not shipped)
 BuildingBlocks/
 local-orchestrator/.gemork/
+
+# Browser extension build output
+src/browser-extension/dist/

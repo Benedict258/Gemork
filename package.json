@@ -18,8 +18,16 @@
     "dev:extension": "cd browser-extension && npm run dev",
     "build:desktop": "cd desktop-shell && npm run tauri build",
     "build:orchestrator": "cd local-orchestrator && npm run build",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "build:extension": "cd browser-extension && npm run build",
+    "test": "vitest run",
+    "lint": "eslint local-orchestrator/src/ browser-extension/src/",
+    "typecheck": "tsc --noEmit --project local-orchestrator/tsconfig.json",
+    "ci": "npm run typecheck && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.5.0"
   },
   "engines": {
     "node": ">=20.0.0"

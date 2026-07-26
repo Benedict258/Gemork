@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
 import { useOrchestrator } from "./hooks/useOrchestrator";
+import Header from "./components/Header";
 import TaskInput from "./components/TaskInput";
 import VoiceInput from "./components/VoiceInput";
 import PlanView from "./components/PlanView";
 import ApprovalModal from "./components/ApprovalModal";
-import ConnectionStatus from "./components/ConnectionStatus";
+import EmptyState from "./components/EmptyState";
 
 function App() {
   const {
@@ -36,38 +37,45 @@ function App() {
     [submitGoal],
   );
 
+  const handleSelectExample = useCallback((text: string) => {
+    setGoalText(text);
+  }, []);
+
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="header-left">
-          <h1>Gemork</h1>
-          <span className="subtitle">Cowork with Gemma</span>
-        </div>
-        <ConnectionStatus status={connected} onReconnect={reconnect} />
-      </header>
+      <Header connected={connected} onReconnect={reconnect} />
 
       <main className="app-main">
-        <div className="task-input-row">
-          <TaskInput
-            onSubmit={handleSubmit}
-            disabled={isExecuting}
-            value={goalText}
-            onChange={setGoalText}
-          />
-          <VoiceInput
-            onTranscription={handleVoiceTranscription}
-            disabled={isExecuting || connected !== "connected"}
-          />
-        </div>
-
-        {isExecuting && !currentPlan && (
-          <div className="loading">
-            <p>Generating plan...</p>
-          </div>
+        {!isExecuting && !currentPlan && (
+          <EmptyState onSelectExample={handleSelectExample} />
         )}
 
-        <PlanView plan={currentPlan} />
+        {(isExecuting || currentPlan) && (
+          <>
+            {isExecuting && !currentPlan && (
+              <div className="loading">
+                <p>Generating plan...</p>
+                <div className="loading-shimmer" />
+              </div>
+            )}
+
+            <PlanView plan={currentPlan} />
+          </>
+        )}
       </main>
+
+      <div className="task-input-row">
+        <TaskInput
+          onSubmit={handleSubmit}
+          disabled={isExecuting}
+          value={goalText}
+          onChange={setGoalText}
+        />
+        <VoiceInput
+          onTranscription={handleVoiceTranscription}
+          disabled={isExecuting || connected !== "connected"}
+        />
+      </div>
 
       {pendingApproval && (
         <ApprovalModal
