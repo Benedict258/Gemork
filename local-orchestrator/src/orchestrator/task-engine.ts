@@ -17,8 +17,13 @@ import {
   SubAgentCoordinator,
   type SubAgentTaskResult,
 } from "./sub-agent-coordinator.js";
+import { loadLLMConfig } from "../llm/config.js";
+import { OllamaProvider } from "../llm/ollama-provider.js";
+import { LlamaCppProvider } from "../llm/llamacpp-provider.js";
+import { LLMPlanGeneratorImpl } from "../llm/plan-generator.js";
+import type { LLMProvider } from "../llm/provider.js";
 
-// ─── LLM Integration (Placeholder) ──────────────────────────
+// ─── LLM Integration ───────────────────────────────────────
 
 export interface LLMPlanOutput {
   description: string;
@@ -32,39 +37,25 @@ export interface LLMPlanGenerator {
 }
 
 /**
- * TODO: Wire Gemma 4 local inference here.
- * For now, returns a structured mock plan.
+ * Create an LLM provider from config.
+ * Falls back gracefully if the provider is unreachable.
  */
-export async function generatePlan(goal: string): Promise<LLMPlanOutput[]> {
-  void goal;
-  return [
-    {
-      description: "Analyze goal and gather context",
-      tier: 1,
-      rationale: "Read-only analysis to understand scope",
-    },
-    {
-      description: "Research relevant information",
-      tier: 1,
-      connectorId: "filesystem",
-      rationale: "Read existing files for context",
-    },
-    {
-      description: "Draft initial deliverable",
-      tier: 2,
-      rationale: "Reversible write — can be rolled back via snapshot",
-    },
-    {
-      description: "Review and refine output",
-      tier: 2,
-      rationale: "Iterative refinement of generated content",
-    },
-    {
-      description: "Apply final changes",
-      tier: 3,
-      rationale: "Critical write requiring human approval",
-    },
-  ];
+export function createLLMProvider(): LLMProvider {
+  const config = loadLLMConfig();
+  switch (config.provider) {
+    case "llamacpp":
+      return new LlamaCppProvider(config);
+    case "ollama":
+    default:
+      return new OllamaProvider(config);
+  }
+}
+
+/**
+ * Create a plan generator backed by the configured local LLM.
+ */
+export function createPlanGenerator(): LLMPlanGenerator {
+  return new LLMPlanGeneratorImpl(createLLMProvider());
 }
 
 // ─── Task Engine Configuration ───────────────────────────────
@@ -123,7 +114,7 @@ export class TaskEngine {
       maxConcurrency: config?.maxConcurrency ?? 3,
     });
     this.coordinator.attachEventBus(this.eventBus);
-    this.llmGenerator = config?.llmGenerator ?? { generatePlan };
+    this.llmGenerator = config?.llmGenerator ?? createPlanGenerator();
   }
 
   // ── Public API ───────────────────────────────────────────

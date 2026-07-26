@@ -1,0 +1,552 @@
+/* ─── Reset & Base ────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0b0;
+  --text-muted: #6b7280;
+  --accent: #e94560;
+  --success: #4ade80;
+  --warning: #facc15;
+  --danger: #ef4444;
+  --tier-1: #4ade80;
+  --tier-2: #facc15;
+  --tier-3: #ef4444;
+  --border: #2a2a4a;
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ─── App Layout ──────────────────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.app-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─── TaskInput ───────────────────────────────────────────── */
+.task-input {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.task-input textarea {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.task-input textarea:focus {
+  border-color: var(--accent);
+}
+
+.task-input textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.task-input textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.voice-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.start-btn {
+  align-self: flex-end;
+  padding: 10px 28px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.start-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.start-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Loading ─────────────────────────────────────────────── */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+/* ─── PlanView ────────────────────────────────────────────── */
+.plan-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.plan-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.plan-status {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.plan-status-generating {
+  background: rgba(250, 204, 21, 0.15);
+  color: var(--warning);
+}
+
+.plan-status-executing {
+  background: rgba(233, 69, 96, 0.15);
+  color: var(--accent);
+}
+
+.plan-status-completed {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--success);
+}
+
+.plan-status-paused {
+  background: rgba(160, 160, 176, 0.15);
+  color: var(--text-secondary);
+}
+
+.plan-status-awaiting_approval {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+/* ─── Progress Bar ────────────────────────────────────────── */
+.progress-bar {
+  position: relative;
+  height: 24px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+  border-radius: var(--radius);
+}
+
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ─── Plan Steps ──────────────────────────────────────────── */
+.plan-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-step {
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.step-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: default;
+}
+
+.step-main[role="button"] {
+  cursor: pointer;
+}
+
+.step-main[role="button"]:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.step-status {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.status-pending {
+  color: var(--text-muted);
+}
+
+.status-running {
+  color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.status-completed {
+  color: var(--success);
+}
+
+.status-failed {
+  color: var(--danger);
+}
+
+.status-awaiting_approval {
+  color: var(--warning);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.step-description {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.step-tier {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+.tier-1 {
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--tier-1);
+}
+
+.tier-2 {
+  background: rgba(250, 204, 21, 0.12);
+  color: var(--tier-2);
+}
+
+.tier-3 {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--tier-3);
+}
+
+.step-expand {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.step-details {
+  padding: 0 14px 12px 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.detail-label {
+  color: var(--text-muted);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.detail-row.error .detail-value {
+  color: var(--danger);
+}
+
+/* ─── Connection Status ───────────────────────────────────── */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.connection-status:hover {
+  border-color: var(--text-muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.connected {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+.status-dot.reconnecting {
+  background: var(--warning);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-dot.disconnected {
+  background: var(--danger);
+}
+
+.status-label {
+  white-space: nowrap;
+}
+
+/* ─── Modal ───────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 12px;
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-tier-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--tier-3);
+  text-transform: uppercase;
+}
+
+.modal-body {
+  padding: 0 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-step-desc {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.modal-section p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-btn {
+  flex: 1;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.modal-btn:hover {
+  opacity: 0.85;
+}
+
+.modal-btn.approve {
+  background: var(--success);
+  color: #000;
+}
+
+.modal-btn.reject {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

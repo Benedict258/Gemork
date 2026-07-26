@@ -2,7 +2,8 @@
 
 export {
   TaskEngine,
-  generatePlan,
+  createLLMProvider,
+  createPlanGenerator,
   type LLMPlanGenerator,
   type LLMPlanOutput,
   type TaskEngineConfig,

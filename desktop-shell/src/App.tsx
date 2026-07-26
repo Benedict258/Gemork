@@ -1,42 +1,54 @@
-import { useState } from "react";
+import { useOrchestrator } from "./hooks/useOrchestrator";
 import TaskInput from "./components/TaskInput";
 import PlanView from "./components/PlanView";
-
-interface PlanStep {
-  id: string;
-  description: string;
-  status: "pending" | "running" | "completed" | "failed";
-  tier: 1 | 2 | 3;
-}
+import ApprovalModal from "./components/ApprovalModal";
+import ConnectionStatus from "./components/ConnectionStatus";
 
 function App() {
-  const [plan, setPlan] = useState<PlanStep[]>([]);
-  const [isExecuting, setIsExecuting] = useState(false);
+  const {
+    connected,
+    currentPlan,
+    pendingApproval,
+    submitGoal,
+    approveStep,
+    rejectStep,
+    reconnect,
+  } = useOrchestrator();
+
+  const isExecuting =
+    currentPlan?.status === "executing" ||
+    currentPlan?.status === "generating" ||
+    currentPlan?.status === "awaiting_approval";
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Gemork</h1>
-        <span className="subtitle">Cowork with Gemma</span>
+        <div className="header-left">
+          <h1>Gemork</h1>
+          <span className="subtitle">Cowork with Gemma</span>
+        </div>
+        <ConnectionStatus status={connected} onReconnect={reconnect} />
       </header>
 
       <main className="app-main">
-        <TaskInput
-          onSubmit={(goal) => {
-            console.log("Goal submitted:", goal);
-            setIsExecuting(true);
-          }}
-          disabled={isExecuting}
-        />
+        <TaskInput onSubmit={submitGoal} disabled={isExecuting} />
 
-        {plan.length > 0 && <PlanView steps={plan} />}
-
-        {isExecuting && plan.length === 0 && (
+        {isExecuting && !currentPlan && (
           <div className="loading">
             <p>Generating plan...</p>
           </div>
         )}
+
+        <PlanView plan={currentPlan} />
       </main>
+
+      {pendingApproval && (
+        <ApprovalModal
+          request={pendingApproval}
+          onApprove={approveStep}
+          onReject={rejectStep}
+        />
+      )}
     </div>
   );
 }

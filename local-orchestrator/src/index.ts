@@ -5,6 +5,9 @@ export * from "./orchestrator/index.js";
 export type { Goal, Plan, PlanStep, StepStatus, StepTier } from "./orchestrator/plan.js";
 export { createGoal, createPlan, createPlanStep } from "./orchestrator/plan.js";
 
+// LLM abstraction layer
+export * from "./llm/index.js";
+
 // Guardrails
 export { GuardrailEngine } from "./guardrails/index.js";
 export type {
@@ -47,3 +50,19 @@ export type {
   ConnectorConfig,
   PermissionRecord,
 } from "./storage/index.js";
+
+// Connector Adapter Layer
+export {
+  FilesystemConnector,
+  ConnectorManager,
+  ConnectorBridge,
+} from "./connectors/index.js";
+export type {
+  IConnector,
+  ConnectorResult,
+  ConnectorScope,
+  FilesystemConnectorConfig,
+  ConnectorOp,
+  BridgeContext,
+  ConnectorBridgeConfig,
+} from "./connectors/index.js";
