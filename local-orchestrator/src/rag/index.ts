@@ -1,4 +1,5 @@
-export { EmbeddingProvider, OllamaEmbeddingProvider, SimpleEmbeddingProvider, createEmbeddingProvider } from "./embedding-provider.js";
+export type { EmbeddingProvider } from "./embedding-provider.js";
+export { OllamaEmbeddingProvider, SimpleEmbeddingProvider, createEmbeddingProvider } from "./embedding-provider.js";
 export { VectorStore } from "./vector-store.js";
 export type { VectorEntry, SearchResult, VectorStoreStats } from "./vector-store.js";
 export { MemoryIndexer } from "./memory-indexer.js";

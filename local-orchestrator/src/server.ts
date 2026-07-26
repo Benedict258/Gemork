@@ -11,7 +11,7 @@ import { createLogger } from "./middleware/logger.js";
 import { healthCheckHandler, createDefaultHealthChecks } from "./middleware/health-check.js";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
-const WS_PORT = parseInt(process.env.WS_PORT || "8080", 10);
+const WS_PORT = parseInt(process.env.WS_PORT || "8081", 10);
 
 const log = createLogger("server");
 

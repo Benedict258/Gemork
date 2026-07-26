@@ -22,7 +22,7 @@ interface UseOrchestratorReturn {
   reconnect: () => void;
 }
 
-const WS_URL_FALLBACK = "ws://localhost:8080";
+const WS_URL_FALLBACK = "ws://localhost:8081";
 const RECONNECT_DELAY = 3000;
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {

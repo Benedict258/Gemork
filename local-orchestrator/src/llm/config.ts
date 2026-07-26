@@ -17,6 +17,13 @@ export interface GemmaModelInfo {
 }
 
 export const GEMMA_MODELS: Record<string, GemmaModelInfo> = {
+  "gemma4:latest": {
+    tag: "gemma4:latest",
+    sizeBytes: 9_600_000_000,
+    quantization: "Q4_K_M",
+    parameterCount: "12B",
+    minRamGB: 8,
+  },
   "gemma4:2b": {
     tag: "gemma4:2b",
     sizeBytes: 1_600_000_000,
@@ -43,12 +50,12 @@ export const GEMMA_MODELS: Record<string, GemmaModelInfo> = {
 const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
   ollama: {
     provider: "ollama",
-    model: "gemma4:2b",
+    model: "gemma4:latest",
     baseUrl: "http://localhost:11434",
     temperature: 0.3,
     topP: 0.9,
     maxTokens: 2048,
-    timeoutMs: 30_000,
+    timeoutMs: 120_000,
   },
   llamacpp: {
     provider: "llamacpp",
@@ -57,7 +64,7 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     temperature: 0.3,
     topP: 0.9,
     maxTokens: 2048,
-    timeoutMs: 30_000,
+    timeoutMs: 120_000,
   },
 };
 
@@ -96,5 +103,5 @@ export function resolveGemmaModel(availableRamGB?: number): string {
     .filter((m) => m.minRamGB <= availableRamGB)
     .sort((a, b) => b.sizeBytes - a.sizeBytes);
 
-  return candidates.length > 0 ? candidates[0].tag : "gemma4:2b";
+  return candidates.length > 0 ? candidates[0].tag : "gemma4:latest";
 }
