@@ -1,0 +1,27 @@
+{
+  "name": "gemork",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first autonomous AI agent using Gemma 4",
+  "workspaces": [
+    "desktop-shell/src-tauri",
+    "desktop-shell/src",
+    "local-orchestrator",
+    "connector-adapter-layer",
+    "browser-extension",
+    "cloud-bridge",
+    "mobile-app"
+  ],
+  "scripts": {
+    "dev:desktop": "cd desktop-shell && npm run tauri dev",
+    "dev:orchestrator": "cd local-orchestrator && npm run dev",
+    "dev:extension": "cd browser-extension && npm run dev",
+    "build:desktop": "cd desktop-shell && npm run tauri build",
+    "build:orchestrator": "cd local-orchestrator && npm run build",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

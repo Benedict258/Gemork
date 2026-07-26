@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+target/
+out/
+
+# Tauri
+desktop-shell/src-tauri/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# SQLite
+*.db
+*.db-journal
+
+# ChromaDB
+chroma_data/
+
+# Snapshots
+.gemork/history/
+
+# Test coverage
+coverage/
+.nyc_output/
