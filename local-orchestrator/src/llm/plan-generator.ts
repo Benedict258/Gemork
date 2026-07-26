@@ -2,6 +2,8 @@ import type { LLMProvider, LLMResponse } from "./provider.js";
 import type { LLMPlanOutput } from "../orchestrator/task-engine.js";
 import type { StepTier } from "../orchestrator/plan.js";
 import { DirtyJson } from "./dirty-json.js";
+import type { RagContext } from "../rag/rag-retriever.js";
+import { buildRagPromptSection } from "../rag/context-builder.js";
 
 const PLAN_SYSTEM_PROMPT = `You are a task planner for an autonomous AI agent. Given a goal, decompose it into ordered steps.
 
@@ -31,10 +33,14 @@ export class LLMPlanGeneratorImpl {
     this.provider = provider;
   }
 
-  async generatePlan(goal: string): Promise<LLMPlanOutput[]> {
+  async generatePlan(goal: string, ragContext?: RagContext): Promise<LLMPlanOutput[]> {
     try {
+      const systemContent = ragContext
+        ? `${PLAN_SYSTEM_PROMPT}\n\n${buildRagPromptSection(ragContext)}`
+        : PLAN_SYSTEM_PROMPT;
+
       const response = await this.provider.chat([
-        { role: "system", content: PLAN_SYSTEM_PROMPT },
+        { role: "system", content: systemContent },
         { role: "user", content: `Goal: ${goal}` },
       ], { temperature: 0.3 });
 

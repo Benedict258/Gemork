@@ -1,5 +1,7 @@
+import { useCallback, useState } from "react";
 import { useOrchestrator } from "./hooks/useOrchestrator";
 import TaskInput from "./components/TaskInput";
+import VoiceInput from "./components/VoiceInput";
 import PlanView from "./components/PlanView";
 import ApprovalModal from "./components/ApprovalModal";
 import ConnectionStatus from "./components/ConnectionStatus";
@@ -15,10 +17,24 @@ function App() {
     reconnect,
   } = useOrchestrator();
 
+  const [goalText, setGoalText] = useState("");
+
   const isExecuting =
     currentPlan?.status === "executing" ||
     currentPlan?.status === "generating" ||
     currentPlan?.status === "awaiting_approval";
+
+  const handleVoiceTranscription = useCallback((text: string) => {
+    setGoalText((prev) => (prev ? `${prev} ${text}` : text));
+  }, []);
+
+  const handleSubmit = useCallback(
+    (text: string) => {
+      submitGoal(text);
+      setGoalText("");
+    },
+    [submitGoal],
+  );
 
   return (
     <div className="app">
@@ -31,7 +47,18 @@ function App() {
       </header>
 
       <main className="app-main">
-        <TaskInput onSubmit={submitGoal} disabled={isExecuting} />
+        <div className="task-input-row">
+          <TaskInput
+            onSubmit={handleSubmit}
+            disabled={isExecuting}
+            value={goalText}
+            onChange={setGoalText}
+          />
+          <VoiceInput
+            onTranscription={handleVoiceTranscription}
+            disabled={isExecuting || connected !== "connected"}
+          />
+        </div>
 
         {isExecuting && !currentPlan && (
           <div className="loading">

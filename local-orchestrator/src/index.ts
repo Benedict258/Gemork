@@ -66,3 +66,39 @@ export type {
   BridgeContext,
   ConnectorBridgeConfig,
 } from "./connectors/index.js";
+
+// Voice Module
+export {
+  AudioProcessor,
+  audioBufferToWav,
+  trimSilence,
+} from "./voice/audio-processor.js";
+export {
+  type TranscriptionProvider,
+  WhisperLocalProvider,
+  WebSpeechFallbackProvider,
+  createTranscriptionProvider,
+} from "./voice/transcription-provider.js";
+export { VoiceHandler } from "./voice/voice-handler.js";
+export { VoiceWebSocket } from "./voice/voice-websocket.js";
+
+// RAG System
+export {
+  OllamaEmbeddingProvider,
+  SimpleEmbeddingProvider,
+  createEmbeddingProvider,
+  VectorStore,
+  MemoryIndexer,
+  RagRetriever,
+  buildRagPromptSection,
+} from "./rag/index.js";
+export type {
+  EmbeddingProvider,
+  VectorEntry,
+  SearchResult,
+  VectorStoreStats,
+  RagContext,
+  MemoryEntry as RagMemoryEntry,
+  FileContext,
+  PlanContext,
+} from "./rag/index.js";
