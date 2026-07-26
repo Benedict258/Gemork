@@ -1,4 +1,4 @@
-import { type PlanStep, type StepTier } from "../types.js";
+import { type PlanStep, type StepTier } from "./orchestrator/plan.js";
 
 export type GuardrailAction = "allow" | "ask" | "deny";
 

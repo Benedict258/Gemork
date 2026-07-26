@@ -1,4 +1,4 @@
-import { type PlanStep } from "../types.js";
+import { type PlanStep } from "./orchestrator/plan.js";
 import { v4 as uuid } from "uuid";
 
 export interface Snapshot {

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    .status-dot.connected {
+      background: #22c55e;
+    }
+    .mode-toggle {
+      display: flex;
+      gap: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #334155;
+      margin-bottom: 16px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-btn.active-ask {
+      background: #2563eb;
+      color: #fff;
+    }
+    .mode-btn.active-act {
+      background: #f97316;
+      color: #fff;
+    }
+    .mode-btn:hover:not(.active-ask):not(.active-act) {
+      background: #334155;
+    }
+    .mode-label {
+      font-size: 11px;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .responses {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .response {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      border: 1px solid #334155;
+      white-space: pre-wrap;
+    }
+    .response.agent {
+      border-left: 3px solid #2563eb;
+    }
+    .response.error {
+      border-left: 3px solid #ef4444;
+      color: #fca5a5;
+    }
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .input-row input {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+    }
+    .input-row input:focus {
+      border-color: #2563eb;
+    }
+    .input-row button {
+      background: #2563eb;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .input-row button:hover {
+      background: #1d4ed8;
+    }
+    .input-row button:disabled {
+      background: #334155;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Gemork</h1>
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Disconnected</span>
+    </div>
+  </div>
+
+  <div class="mode-toggle">
+    <button class="mode-btn active-ask" id="askBtn" data-mode="ask">Ask</button>
+    <button class="mode-btn" id="actBtn" data-mode="act">Act</button>
+  </div>
+  <div class="mode-label" id="modeLabel">Ask mode — read-only access</div>
+
+  <div class="responses" id="responses"></div>
+
+  <div class="input-row">
+    <input type="text" id="userInput" placeholder="Ask Gemork anything..." />
+    <button id="sendBtn">Send</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
