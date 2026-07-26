@@ -394,11 +394,11 @@ describe("llm-integration/errors", () => {
   });
 
   it("LLMModelNotFoundError includes available models", () => {
-    const err = new LLMModelNotFoundError("gemma2:14b", ["gemma2:2b", "gemma2:9b"]);
+    const err = new LLMModelNotFoundError("gemma4:14b", ["gemma4:2b", "gemma4:9b"]);
     expect(err.code).toBe("MODEL_NOT_FOUND");
     expect(err.recoverable).toBe(false);
-    expect(err.message).toContain("gemma2:14b");
-    expect(err.message).toContain("gemma2:2b");
+    expect(err.message).toContain("gemma4:14b");
+    expect(err.message).toContain("gemma4:2b");
   });
 
   it("LLMProviderUnreachableError has correct code", () => {

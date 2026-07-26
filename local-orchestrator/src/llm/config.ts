@@ -17,22 +17,22 @@ export interface GemmaModelInfo {
 }
 
 export const GEMMA_MODELS: Record<string, GemmaModelInfo> = {
-  "gemma2:2b": {
-    tag: "gemma2:2b",
+  "gemma4:2b": {
+    tag: "gemma4:2b",
     sizeBytes: 1_600_000_000,
     quantization: "Q4_0",
     parameterCount: "2B",
     minRamGB: 4,
   },
-  "gemma2:9b": {
-    tag: "gemma2:9b",
+  "gemma4:9b": {
+    tag: "gemma4:9b",
     sizeBytes: 5_800_000_000,
     quantization: "Q4_K_M",
     parameterCount: "9B",
     minRamGB: 8,
   },
-  "gemma2:27b": {
-    tag: "gemma2:27b",
+  "gemma4:27b": {
+    tag: "gemma4:27b",
     sizeBytes: 16_000_000_000,
     quantization: "Q4_K_M",
     parameterCount: "27B",
@@ -43,7 +43,7 @@ export const GEMMA_MODELS: Record<string, GemmaModelInfo> = {
 const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
   ollama: {
     provider: "ollama",
-    model: "gemma2:2b",
+    model: "gemma4:2b",
     baseUrl: "http://localhost:11434",
     temperature: 0.3,
     topP: 0.9,
@@ -86,7 +86,7 @@ export function loadLLMConfig(overrides?: Partial<LLMConfig>): LLMConfig {
 }
 
 /**
- * Resolve which Gemma model tag to use based on available hardware.
+ * Resolve which Gemma 4 model tag to use based on available hardware.
  * Prefers the largest model that fits in available RAM.
  */
 export function resolveGemmaModel(availableRamGB?: number): string {
@@ -96,5 +96,5 @@ export function resolveGemmaModel(availableRamGB?: number): string {
     .filter((m) => m.minRamGB <= availableRamGB)
     .sort((a, b) => b.sizeBytes - a.sizeBytes);
 
-  return candidates.length > 0 ? candidates[0].tag : "gemma2:2b";
+  return candidates.length > 0 ? candidates[0].tag : "gemma4:2b";
 }
