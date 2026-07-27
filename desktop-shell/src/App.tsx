@@ -12,6 +12,7 @@ function App() {
     connected,
     currentPlan,
     pendingApproval,
+    inboxItems,
     submitGoal,
     approveStep,
     rejectStep,
@@ -80,6 +81,7 @@ function App() {
       {pendingApproval && (
         <ApprovalModal
           request={pendingApproval}
+          inboxItems={inboxItems}
           onApprove={approveStep}
           onReject={rejectStep}
         />
