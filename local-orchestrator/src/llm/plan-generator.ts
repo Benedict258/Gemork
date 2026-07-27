@@ -53,11 +53,14 @@ export class LLMPlanGeneratorImpl {
     const timeoutMs = this.config.timeoutMs!;
     const startTime = Date.now();
 
+    // Sanitize goal to prevent prompt injection
+    const sanitizedGoal = this.sanitizeGoal(goal);
+
     // Check if provider is available before attempting
     const available = await this.provider.isAvailable().catch(() => false);
     if (!available) {
       console.warn("[plan-generator] LLM provider unavailable, returning default plan");
-      return this.defaultPlan(goal, "LLM provider unavailable");
+      return this.defaultPlan(sanitizedGoal, "LLM provider unavailable");
     }
 
     const systemContent = ragContext
@@ -143,6 +146,25 @@ export class LLMPlanGeneratorImpl {
         rationale: "Reversible implementation based on analysis",
       },
     ];
+  }
+
+  private sanitizeGoal(goal: string): string {
+    // Strip potential prompt injection patterns
+    let sanitized = goal
+      .replace(/```[\s\S]*?```/g, "[code block removed]")
+      .replace(/\[INST\]/g, "").replace(/\[\/INST\]/g, "")
+      .replace(/<<SYS>>/g, "").replace(/<\/<SYS>>/g, "")
+      .replace(/ignore (all |any )?(previous|above|prior) (instructions?|prompts?|rules?)/gi, "[filtered]")
+      .replace(/you are now|pretend to be|act as|roleplay as/gi, "[filtered]")
+      .replace(/system prompt|assistant prompt/gi, "[filtered]")
+      .trim();
+
+    // Enforce max length (500 chars for goals)
+    if (sanitized.length > 500) {
+      sanitized = sanitized.substring(0, 500);
+    }
+
+    return sanitized || "Untitled task";
   }
 }
 

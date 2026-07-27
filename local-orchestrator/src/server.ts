@@ -39,7 +39,40 @@ createDefaultHealthChecks();
 // ── HTTP Server ──────────────────────────────────────────────
 
 const app = express();
-app.use(express.json());
+
+// ── Security Middleware ──────────────────────────────────────
+app.use(express.json({ limit: "1mb" }));
+
+// Simple rate limiting (in-memory, per-IP)
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
+app.use((_req, res, next) => {
+  const ip = _req.ip || _req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const entry = requestCounts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    requestCounts.set(ip, { count: 1, resetAt: now + 60_000 });
+    next();
+  } else if (entry.count < 100) {
+    entry.count++;
+    next();
+  } else {
+    res.status(429).json({ error: "Rate limit exceeded. Try again in 60 seconds." });
+  }
+});
+
+// API key auth (optional — set GEMORK_API_KEY env var to enable)
+const API_KEY = process.env.GEMORK_API_KEY;
+if (API_KEY) {
+  app.use("/api", (req, res, next) => {
+    // Skip auth for health check
+    if (req.path === "/health") return next();
+    const key = req.headers["x-api-key"] || req.query.key;
+    if (key !== API_KEY) {
+      return res.status(401).json({ error: "Unauthorized. Provide X-API-Key header." });
+    }
+    next();
+  });
+}
 
 const httpServer = createServer(app);
 
@@ -294,7 +327,22 @@ app.use(errorHandler);
 
 // ── WebSocket Server ────────────────────────────────────────
 
-const wss = new WebSocketServer({ port: WS_PORT });
+const wss = new WebSocketServer({
+  port: WS_PORT,
+  verifyClient: (info, callback) => {
+    const origin = info.origin || info.req.headers.origin;
+    // Allow connections from localhost, file:// (Tauri), and chrome-extension://
+    const allowed = !origin ||
+      origin.startsWith("http://localhost") ||
+      origin.startsWith("http://127.0.0.1") ||
+      origin.startsWith("file://") ||
+      origin.startsWith("chrome-extension://");
+    if (!allowed) {
+      log.warn("WebSocket connection rejected", { origin });
+    }
+    callback(allowed);
+  },
+});
 
 wss.on("connection", (ws) => {
   broadcaster.addClient(ws);

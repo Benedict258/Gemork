@@ -8,11 +8,11 @@ import { SnapshotService } from "../../src/storage/snapshot-service.js";
 import type { IConnector } from "../../src/connectors/base-connector.js";
 
 vi.mock("../../src/storage/snapshot-service.js", () => ({
-  SnapshotService: vi.fn().mockImplementation(() => ({
-    capturePreWrite: vi.fn().mockResolvedValue("snap-id"),
-    restore: vi.fn().mockResolvedValue(Buffer.alloc(0)),
-    listSnapshots: vi.fn().mockResolvedValue([]),
-  })),
+  SnapshotService: class MockSnapshotService {
+    capturePreWrite = vi.fn().mockResolvedValue("snap-id");
+    restore = vi.fn().mockResolvedValue(Buffer.alloc(0));
+    listSnapshots = vi.fn().mockResolvedValue([]);
+  },
 }));
 
 function mockFetch(responses: Array<{ ok: boolean; status?: number; json?: unknown; text?: string }>) {

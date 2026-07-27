@@ -269,9 +269,20 @@ async function handleToolCall(tool, args) {
       simulateType(el, args.text || '');
       return { typed: true, refId: args.refId };
     }
-    case 'navigate':
-      window.location.href = args.url;
-      return { navigating: true, url: args.url };
+    case 'navigate': {
+      // Validate URL scheme — block javascript:, data:, file: URIs
+      const url = args.url || '';
+      const blockedSchemes = ['javascript:', 'data:', 'file:', 'vbscript:'];
+      if (blockedSchemes.some(s => url.toLowerCase().startsWith(s))) {
+        return { blocked: true, reason: `Blocked navigation to ${url.split(':')[0]}: scheme` };
+      }
+      // Only allow http/https
+      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+        return { blocked: true, reason: 'Only http/https URLs are allowed' };
+      }
+      window.location.href = url;
+      return { navigating: true, url };
+    }
     case 'submit_form': {
       let formEl = null;
       if (args.refId) {
