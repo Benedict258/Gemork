@@ -1,5 +1,5 @@
 export interface LLMConfig {
-  provider: "ollama" | "llamacpp" | "openai" | "anthropic";
+  provider: "ollama" | "llamacpp" | "openai" | "anthropic" | "gemini";
   model: string;
   baseUrl: string;
   temperature?: number;
@@ -55,7 +55,7 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     temperature: 0.3,
     topP: 0.9,
     maxTokens: 2048,
-    timeoutMs: 120_000,
+    timeoutMs: 300_000,
   },
   llamacpp: {
     provider: "llamacpp",
@@ -64,7 +64,7 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     temperature: 0.3,
     topP: 0.9,
     maxTokens: 2048,
-    timeoutMs: 120_000,
+    timeoutMs: 300_000,
   },
   openai: {
     provider: "openai",
@@ -72,7 +72,7 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     baseUrl: "https://api.openai.com/v1",
     temperature: 0.3,
     maxTokens: 2048,
-    timeoutMs: 120_000,
+    timeoutMs: 300_000,
   },
   anthropic: {
     provider: "anthropic",
@@ -80,7 +80,16 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     baseUrl: "https://api.anthropic.com",
     temperature: 0.3,
     maxTokens: 2048,
-    timeoutMs: 120_000,
+    timeoutMs: 300_000,
+  },
+  gemini: {
+    provider: "gemini",
+    model: "gemma-4-26b-a4b-it",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    temperature: 0.3,
+    topP: 0.9,
+    maxTokens: 2048,
+    timeoutMs: 60_000,
   },
 };
 
@@ -109,9 +118,14 @@ function resolveProvider(overrides?: Partial<LLMConfig>): LLMConfig["provider"] 
   if (overrides?.provider) return overrides.provider;
 
   const env = process.env.GEMORK_LLM_PROVIDER;
-  if (env === "ollama" || env === "llamacpp" || env === "openai" || env === "anthropic") {
+  if (env === "ollama" || env === "llamacpp" || env === "openai" || env === "anthropic" || env === "gemini") {
     return env;
   }
+
+  // Auto-detect from API keys
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return "gemini";
+  if (process.env.GEMORK_OPENAI_API_KEY) return "openai";
+  if (process.env.GEMORK_ANTHROPIC_API_KEY) return "anthropic";
 
   if (process.env.GEMORK_OPENAI_API_KEY) return "openai";
   if (process.env.GEMORK_ANTHROPIC_API_KEY) return "anthropic";

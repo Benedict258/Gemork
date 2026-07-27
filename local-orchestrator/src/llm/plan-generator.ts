@@ -55,7 +55,7 @@ export class LLMPlanGeneratorImpl {
   constructor(provider: LLMProvider, config?: PlanGeneratorConfig) {
     this.provider = provider;
     this.config = {
-      timeoutMs: config?.timeoutMs ?? 30_000,
+      timeoutMs: config?.timeoutMs ?? 120_000,
       maxRetries: config?.maxRetries ?? MAX_RETRIES,
     };
   }

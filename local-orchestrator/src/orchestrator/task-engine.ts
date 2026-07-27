@@ -23,6 +23,7 @@ import { OllamaProvider } from "../llm/providers/ollama-provider.js";
 import { LlamaCppProvider } from "../llm/providers/llamacpp-provider.js";
 import { OpenAIProvider } from "../llm/providers/openai-provider.js";
 import { AnthropicProvider } from "../llm/providers/anthropic-provider.js";
+import { GeminiProvider } from "../llm/providers/gemini-provider.js";
 import { LLMPlanGeneratorImpl } from "../llm/plan-generator.js";
 import type { LLMProvider } from "../llm/provider.js";
 import { StateSaver, type TaskState } from "../persistence/state-saver.js";
@@ -49,6 +50,7 @@ registerProvider("ollama", () => new OllamaProvider(loadLLMConfig({ provider: "o
 registerProvider("llamacpp", () => new LlamaCppProvider(loadLLMConfig({ provider: "llamacpp" })));
 registerProvider("openai", () => new OpenAIProvider());
 registerProvider("anthropic", () => new AnthropicProvider());
+registerProvider("gemini", () => new GeminiProvider());
 
 /**
  * Create an LLM provider from config via the registry.
