@@ -11,7 +11,16 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": [
+        "adapters/index.js",
+        "adapters/generic.js",
+        "adapters/github.js",
+        "adapters/google.js",
+        "adapters/notion.js",
+        "adapters/slack.js",
+        "adapters/docs.js",
+        "content.js"
+      ]
     }
   ],
   "action": {

@@ -4,7 +4,6 @@ import type { StepTier } from "../orchestrator/plan.js";
 import { DirtyJson } from "./dirty-json.js";
 import type { RagContext } from "../rag/rag-retriever.js";
 import { buildRagPromptSection } from "../rag/context-builder.js";
-import { LLMTimeoutError } from "./errors.js";
 
 const PLAN_SYSTEM_PROMPT = `You are a task planner for an autonomous AI agent called Gemork. Given a goal, decompose it into ordered steps.
 
@@ -58,7 +57,7 @@ export class LLMPlanGeneratorImpl {
     const available = await this.provider.isAvailable().catch(() => false);
     if (!available) {
       console.warn("[plan-generator] LLM provider unavailable, returning default plan");
-      return this.defaultPlan(goal, "LLM provider unavailable — is Ollama running?");
+      return this.defaultPlan(goal, "LLM provider unavailable");
     }
 
     const systemContent = ragContext

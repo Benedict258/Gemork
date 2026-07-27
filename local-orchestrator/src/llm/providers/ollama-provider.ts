@@ -4,14 +4,13 @@ import {
   type ChatOptions,
   type LLMResponse,
   type LLMStreamChunk,
-  type ToolDefinition,
-} from "./provider.js";
-import type { LLMConfig } from "./config.js";
+} from "../provider.js";
+import type { LLMConfig } from "../config.js";
 import {
   LLMProviderUnreachableError,
   LLMModelNotFoundError,
   LLMTimeoutError,
-} from "./errors.js";
+} from "../errors.js";
 
 export class OllamaProvider implements LLMProvider {
   private config: LLMConfig;

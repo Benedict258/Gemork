@@ -10,6 +10,47 @@ const MessageType = {
 
 let currentMode = 'ask';
 
+let credentialDetector = null;
+
+function getCredentialDetector() {
+  if (credentialDetector) return credentialDetector;
+  if (window.GemorkCredentialDetector) {
+    credentialDetector = window.GemorkCredentialDetector;
+    return credentialDetector;
+  }
+  credentialDetector = {
+    isCredentialField: () => false,
+    getCredentialType: () => null,
+    scanPageForCredentials: () => [],
+  };
+  return credentialDetector;
+}
+
+function initAdapters() {
+  if (typeof AdapterRegistry === 'undefined') {
+    console.warn('[Gemork] AdapterRegistry not found');
+    return;
+  }
+  if (typeof GenericAdapter !== 'undefined') AdapterRegistry.registerAdapter(GenericAdapter);
+  if (typeof GitHubAdapter !== 'undefined') AdapterRegistry.registerAdapter(GitHubAdapter);
+  if (typeof GoogleAdapter !== 'undefined') AdapterRegistry.registerAdapter(GoogleAdapter);
+  if (typeof NotionAdapter !== 'undefined') AdapterRegistry.registerAdapter(NotionAdapter);
+  if (typeof SlackAdapter !== 'undefined') AdapterRegistry.registerAdapter(SlackAdapter);
+  if (typeof DocsAdapter !== 'undefined') AdapterRegistry.registerAdapter(DocsAdapter);
+  console.log('[Gemork] Adapters loaded:', AdapterRegistry.listAdapters().map(a => a.name));
+}
+
+function getActiveAdapter() {
+  if (typeof AdapterRegistry === 'undefined') return null;
+  return AdapterRegistry.getAdapter(window.location.href);
+}
+
+function getFallbackAdapter() {
+  return (typeof GenericAdapter !== 'undefined') ? GenericAdapter : null;
+}
+
+initAdapters();
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === MessageType.MODE_SWITCH) {
     currentMode = msg.mode;
@@ -36,6 +77,16 @@ function getRefId(el, counter) {
 }
 
 function getInteractiveElements() {
+  const adapter = getActiveAdapter();
+  if (adapter && adapter.getInteractiveElements) {
+    const elements = adapter.getInteractiveElements(document);
+    const detector = getCredentialDetector();
+    return elements.map(el => {
+      const credType = detector.getCredentialType(el);
+      return { ...el, credentialField: credType || undefined };
+    });
+  }
+
   const counter = { value: 1 };
   const selectors = [
     'a[href]', 'button', 'input', 'textarea', 'select',
@@ -43,9 +94,11 @@ function getInteractiveElements() {
     '[role="menuitem"]', '[onclick]', 'details > summary',
   ];
   const elements = document.querySelectorAll(selectors.join(','));
+  const detector = getCredentialDetector();
   return Array.from(elements).map(el => {
     const refId = getRefId(el, counter);
     const rect = el.getBoundingClientRect();
+    const credType = detector.getCredentialType(el);
     return {
       refId,
       tag: el.tagName.toLowerCase(),
@@ -54,36 +107,44 @@ function getInteractiveElements() {
       ariaLabel: el.getAttribute('aria-label') || null,
       href: el.href || null,
       placeholder: el.placeholder || null,
-      value: el.value || null,
       rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      credentialField: credType || undefined,
     };
   });
 }
 
 async function readPageContent() {
+  const adapter = getActiveAdapter();
+  const adapterName = adapter ? adapter.name : 'generic';
+  const fallback = getFallbackAdapter();
+
+  let pageData;
+  if (adapter && adapter.readPage) {
+    pageData = adapter.readPage(document);
+  } else if (fallback && fallback.readPage) {
+    pageData = fallback.readPage(document);
+  } else {
+    pageData = { text: document.body ? document.body.innerText.slice(0, 50000) : '' };
+  }
+
   const elements = getInteractiveElements();
-  const text = document.body.innerText.slice(0, 50000);
-  const links = Array.from(document.querySelectorAll('a[href]')).map(a => ({
-    text: (a.textContent || '').trim().slice(0, 200),
-    href: a.href,
+  const detector = getCredentialDetector();
+  const credentialFields = detector.scanPageForCredentials().map(c => ({
+    type: c.type,
+    tag: c.tag,
+    name: c.name,
+    id: c.id,
+    inputType: c.inputType,
   }));
-  const forms = Array.from(document.querySelectorAll('form')).map(f => ({
-    action: f.action,
-    method: f.method,
-    fields: Array.from(f.querySelectorAll('input,textarea,select')).map(i => ({
-      name: i.name,
-      type: i.type,
-      placeholder: i.placeholder,
-      value: i.value,
-    })),
-  }));
+
   return {
     url: location.href,
     title: document.title,
-    text,
-    links: links.slice(0, 100),
-    forms,
+    adapter: adapterName,
+    text: pageData.text || '',
+    pageData,
     interactiveElements: elements,
+    credentialFields,
   };
 }
 
@@ -102,6 +163,38 @@ function findElementByRefId(refId) {
   return null;
 }
 
+function findElementBySelector(target) {
+  const adapter = getActiveAdapter();
+  const fallback = getFallbackAdapter();
+  const doc = document;
+
+  if (adapter && adapter.clickSelector) {
+    const el = adapter.clickSelector(doc, target);
+    if (el) return el;
+  }
+  if (fallback && fallback.clickSelector) {
+    const el = fallback.clickSelector(doc, target);
+    if (el) return el;
+  }
+  return null;
+}
+
+function findInputBySelector(target) {
+  const adapter = getActiveAdapter();
+  const fallback = getFallbackAdapter();
+  const doc = document;
+
+  if (adapter && adapter.typeSelector) {
+    const el = adapter.typeSelector(doc, target);
+    if (el) return el;
+  }
+  if (fallback && fallback.typeSelector) {
+    const el = fallback.typeSelector(doc, target);
+    if (el) return el;
+  }
+  return null;
+}
+
 function simulateClick(el) {
   el.focus();
   el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -109,6 +202,12 @@ function simulateClick(el) {
 
 function simulateType(el, text) {
   el.focus();
+  if (el.getAttribute('contenteditable') === 'true') {
+    el.textContent = text;
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return;
+  }
   el.value = '';
   for (const char of text) {
     el.value += char;
@@ -126,6 +225,8 @@ function simulateSubmit(formEl) {
 }
 
 async function handleToolCall(tool, args) {
+  const detector = getCredentialDetector();
+
   switch (tool) {
     case 'read_page':
       return readPageContent();
@@ -137,14 +238,34 @@ async function handleToolCall(tool, args) {
       simulateScroll(args.direction || 'down', args.amount || 500);
       return { scrolled: true, direction: args.direction || 'down' };
     case 'click': {
-      const el = findElementByRefId(args.refId);
-      if (!el) return { error: `Element refId ${args.refId} not found` };
+      let el = null;
+      if (args.refId) {
+        el = findElementByRefId(args.refId);
+      } else if (args.target) {
+        el = findElementBySelector(args.target);
+      }
+      if (!el) return { error: `Element not found: refId=${args.refId || 'none'}, target=${args.target || 'none'}` };
+      if (detector.isCredentialField(el)) {
+        const credType = detector.getCredentialType(el);
+        console.warn(`[Gemork] BLOCKED click on credential field (${credType}). refId=${args.refId}`);
+        return { blocked: true, reason: `Cannot interact with credential field: ${credType}`, refId: args.refId };
+      }
       simulateClick(el);
       return { clicked: true, refId: args.refId };
     }
     case 'type': {
-      const el = findElementByRefId(args.refId);
-      if (!el) return { error: `Element refId ${args.refId} not found` };
+      let el = null;
+      if (args.refId) {
+        el = findElementByRefId(args.refId);
+      } else if (args.target) {
+        el = findInputBySelector(args.target);
+      }
+      if (!el) return { error: `Input not found: refId=${args.refId || 'none'}, target=${args.target || 'none'}` };
+      if (detector.isCredentialField(el)) {
+        const credType = detector.getCredentialType(el);
+        console.warn(`[Gemork] BLOCKED type on credential field (${credType}). refId=${args.refId}`);
+        return { blocked: true, reason: `Cannot interact with credential field: ${credType}`, refId: args.refId };
+      }
       simulateType(el, args.text || '');
       return { typed: true, refId: args.refId };
     }

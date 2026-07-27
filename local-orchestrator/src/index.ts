@@ -139,3 +139,15 @@ export {
   createDefaultHealthChecks,
 } from "./middleware/index.js";
 export type { ErrorEvent, LogLevel, Logger, LogEntry, ModuleHealth, HealthChecker } from "./middleware/index.js";
+
+// Persistence
+export {
+  ChatStore,
+  StateSaver,
+  ResumeManager,
+} from "./persistence/index.js";
+export type {
+  ChatEntry,
+  TaskState,
+  ResumeResult,
+} from "./persistence/index.js";

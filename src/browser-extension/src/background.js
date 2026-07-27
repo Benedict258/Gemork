@@ -116,6 +116,31 @@ async function executeToolOnPage(tool, args) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error('No active tab');
 
+  console.log(`[Gemork] Tool "${tool}" on tab ${tab.id} (${tab.url || 'unknown'})`);
+
+  if (CREDENTIAL_SENSITIVE_TOOLS.includes(tool) && args?.refId !== undefined) {
+    try {
+      const checkResult = await chrome.tabs.sendMessage(tab.id, {
+        type: MessageType.TOOL_CALL,
+        tool: 'get_interactive_elements',
+        args: {},
+      });
+      if (checkResult?.elements) {
+        const target = checkResult.elements.find(el => el.refId === args.refId);
+        if (target?.credentialField) {
+          console.warn(`[Gemork] BLOCKED ${tool} on credential field (${target.credentialField}) in background`);
+          return {
+            blocked: true,
+            reason: `Security: cannot ${tool} on credential field (${target.credentialField})`,
+            refId: args.refId,
+          };
+        }
+      }
+    } catch {
+      // If check fails, content.js will handle the block
+    }
+  }
+
   const response = await chrome.tabs.sendMessage(tab.id, {
     type: MessageType.TOOL_CALL,
     tool,
@@ -128,10 +153,14 @@ async function getUserMessage(text) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const pageContent = tab?.id ? await chrome.tabs.sendMessage(tab.id, { type: MessageType.PAGE_CONTENT }).catch(() => null) : null;
 
+  const context = pageContent
+    ? { url: pageContent.url, title: pageContent.title, adapter: pageContent.adapter || 'generic' }
+    : undefined;
+
   sendToOrchestrator({
     type: MessageType.USER_MESSAGE,
     message: text,
-    context: pageContent ? { url: pageContent.url, title: pageContent.title } : undefined,
+    context,
   });
 }
 
@@ -140,6 +169,8 @@ function isToolAllowed(toolName, mode) {
   const ACT_TOOLS = [...ASK_TOOLS, 'click', 'type', 'navigate', 'submit_form'];
   return mode === 'act' ? ACT_TOOLS.includes(toolName) : ASK_TOOLS.includes(toolName);
 }
+
+const CREDENTIAL_SENSITIVE_TOOLS = ['click', 'type'];
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === MessageType.USER_MESSAGE) {

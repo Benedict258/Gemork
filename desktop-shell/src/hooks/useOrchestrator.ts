@@ -3,6 +3,8 @@ import type {
   ApprovalRequestEvent,
   ApprovalResponseMessage,
   GoalSubmittedMessage,
+  InboxItem,
+  InboxStats,
   OrchestratorEvent,
   Plan,
   PlanStep,
@@ -15,14 +17,21 @@ interface UseOrchestratorReturn {
   plans: Plan[];
   currentPlan: Plan | null;
   pendingApproval: ApprovalRequestEvent | null;
+  inboxItems: InboxItem[];
+  inboxCurrentItem: InboxItem | null;
+  inboxStats: InboxStats;
   send: (msg: unknown) => void;
   submitGoal: (goalText: string) => void;
   approveStep: () => void;
   rejectStep: (reason?: string) => void;
+  resolveInboxItem: (id: string, response?: unknown) => void;
+  cancelInboxItem: (id: string) => void;
+  refreshInbox: () => void;
   reconnect: () => void;
 }
 
 const WS_URL_FALLBACK = "ws://localhost:8081";
+const API_URL_FALLBACK = "http://localhost:3001";
 const RECONNECT_DELAY = 3000;
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -42,6 +51,14 @@ async function getWsUrl(): Promise<string> {
   }
 }
 
+async function getApiUrl(): Promise<string> {
+  try {
+    return await invoke<string>("get_api_url");
+  } catch {
+    return API_URL_FALLBACK;
+  }
+}
+
 export function useOrchestrator(): UseOrchestratorReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -52,6 +69,9 @@ export function useOrchestrator(): UseOrchestratorReturn {
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequestEvent | null>(null);
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+  const [inboxCurrentItem, setInboxCurrentItem] = useState<InboxItem | null>(null);
+  const [inboxStats, setInboxStats] = useState<InboxStats>({ pending: 0, resolved: 0, cancelled: 0 });
 
   const handleEvent = useCallback((event: OrchestratorEvent) => {
     switch (event.type) {
@@ -262,23 +282,80 @@ export function useOrchestrator(): UseOrchestratorReturn {
     [send, pendingApproval],
   );
 
+  const refreshInbox = useCallback(async () => {
+    try {
+      const apiUrl = await getApiUrl();
+      const [itemsRes, statsRes] = await Promise.all([
+        fetch(`${apiUrl}/api/inbox`),
+        fetch(`${apiUrl}/api/inbox/stats`),
+      ]);
+      if (itemsRes.ok) {
+        const data = await itemsRes.json();
+        setInboxItems(data.items ?? []);
+        setInboxCurrentItem(data.currentItem ?? null);
+      }
+      if (statsRes.ok) {
+        setInboxStats(await statsRes.json());
+      }
+    } catch {
+      // Not critical — inbox endpoints may not be available yet
+    }
+  }, []);
+
+  const resolveInboxItem = useCallback(
+    async (id: string, response?: unknown) => {
+      try {
+        const apiUrl = await getApiUrl();
+        await fetch(`${apiUrl}/api/inbox/${id}/resolve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ response }),
+        });
+        refreshInbox();
+      } catch {
+        console.warn("[useOrchestrator] Failed to resolve inbox item via API");
+      }
+    },
+    [refreshInbox],
+  );
+
+  const cancelInboxItem = useCallback(
+    async (id: string) => {
+      try {
+        const apiUrl = await getApiUrl();
+        await fetch(`${apiUrl}/api/inbox/${id}/cancel`, { method: "POST" });
+        refreshInbox();
+      } catch {
+        console.warn("[useOrchestrator] Failed to cancel inbox item via API");
+      }
+    },
+    [refreshInbox],
+  );
+
   useEffect(() => {
     connect();
+    refreshInbox();
     return () => {
       clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
-  }, [connect]);
+  }, [connect, refreshInbox]);
 
   return {
     connected,
     plans,
     currentPlan,
     pendingApproval,
+    inboxItems,
+    inboxCurrentItem,
+    inboxStats,
     send,
     submitGoal,
     approveStep,
     rejectStep,
+    resolveInboxItem,
+    cancelInboxItem,
+    refreshInbox,
     reconnect,
   };
 }

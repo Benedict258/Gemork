@@ -80,3 +80,42 @@ export interface ApprovalResponseMessage {
   approved: boolean;
   reason?: string;
 }
+
+// ── Inbox Types ──────────────────────────────────────────────
+
+export type InboxItemType = "approval" | "question" | "notification";
+export type InboxItemStatus = "pending" | "resolved" | "cancelled";
+
+export interface InboxApprovalPayload {
+  planId: string;
+  stepId: string;
+  description: string;
+  tier: number;
+  rationale?: string;
+}
+
+export interface InboxQuestionPayload {
+  question: string;
+  context?: string;
+  options?: string[];
+}
+
+export interface InboxNotificationPayload {
+  message: string;
+  level: "info" | "warning" | "error";
+}
+
+export interface InboxItem {
+  id: string;
+  type: InboxItemType;
+  status: InboxItemStatus;
+  payload: InboxApprovalPayload | InboxQuestionPayload | InboxNotificationPayload;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface InboxStats {
+  pending: number;
+  resolved: number;
+  cancelled: number;
+}

@@ -18,10 +18,16 @@ import {
   type SubAgentTaskResult,
 } from "./sub-agent-coordinator.js";
 import { loadLLMConfig } from "../llm/config.js";
-import { OllamaProvider } from "../llm/ollama-provider.js";
-import { LlamaCppProvider } from "../llm/llamacpp-provider.js";
+import { registerProvider, getProvider } from "../llm/provider-registry.js";
+import { OllamaProvider } from "../llm/providers/ollama-provider.js";
+import { LlamaCppProvider } from "../llm/providers/llamacpp-provider.js";
+import { OpenAIProvider } from "../llm/providers/openai-provider.js";
+import { AnthropicProvider } from "../llm/providers/anthropic-provider.js";
 import { LLMPlanGeneratorImpl } from "../llm/plan-generator.js";
 import type { LLMProvider } from "../llm/provider.js";
+import { StateSaver, type TaskState } from "../persistence/state-saver.js";
+import { InboxManager } from "../inbox/inbox-manager.js";
+import { LoopDetector } from "../loop-detector/loop-detector.js";
 
 // ─── LLM Integration ───────────────────────────────────────
 
@@ -36,18 +42,22 @@ export interface LLMPlanGenerator {
   generatePlan(goal: string): Promise<LLMPlanOutput[]>;
 }
 
+// Auto-register built-in providers
+registerProvider("ollama", () => new OllamaProvider(loadLLMConfig({ provider: "ollama" })));
+registerProvider("llamacpp", () => new LlamaCppProvider(loadLLMConfig({ provider: "llamacpp" })));
+registerProvider("openai", () => new OpenAIProvider());
+registerProvider("anthropic", () => new AnthropicProvider());
+
 /**
- * Create an LLM provider from config.
+ * Create an LLM provider from config via the registry.
  * Falls back gracefully if the provider is unreachable.
  */
 export function createLLMProvider(): LLMProvider {
   const config = loadLLMConfig();
-  switch (config.provider) {
-    case "llamacpp":
-      return new LlamaCppProvider(config);
-    case "ollama":
-    default:
-      return new OllamaProvider(config);
+  try {
+    return getProvider(config.provider);
+  } catch {
+    return new OllamaProvider(config);
   }
 }
 
@@ -104,9 +114,12 @@ export class TaskEngine {
   private eventBus: OrchestratorEventBus;
   private coordinator: SubAgentCoordinator;
   private llmGenerator: LLMPlanGenerator;
+  private loopDetector: LoopDetector;
   private plans: Map<string, Plan> = new Map();
   private goals: Map<string, Goal> = new Map();
   private activeRuns: Map<string, AbortController> = new Map();
+  private inboxManager: InboxManager;
+  private stateSaver: StateSaver;
 
   constructor(config?: TaskEngineConfig) {
     this.eventBus = new OrchestratorEventBus();
@@ -115,6 +128,40 @@ export class TaskEngine {
     });
     this.coordinator.attachEventBus(this.eventBus);
     this.llmGenerator = config?.llmGenerator ?? createPlanGenerator();
+    this.loopDetector = new LoopDetector();
+    this.inboxManager = new InboxManager("default");
+    this.stateSaver = new StateSaver();
+  }
+
+  getInboxManager(): InboxManager {
+    return this.inboxManager;
+  }
+
+  // ── State Persistence ──────────────────────────────────────
+
+  private async saveTaskState(plan: Plan, projectId: string, sessionId: string): Promise<void> {
+    const completedSteps = plan.steps
+      .filter((s) => s.status === "completed")
+      .map((s) => s.id);
+    const pendingApprovals = plan.steps
+      .filter((s) => s.status === "awaiting_approval")
+      .map((s) => s.id);
+    const currentIndex = plan.steps.findIndex(
+      (s) => s.status === "running" || s.status === "pending",
+    );
+
+    const state: TaskState = {
+      sessionId,
+      planId: plan.id,
+      goalId: plan.goalId,
+      currentStepIndex: currentIndex >= 0 ? currentIndex : plan.steps.length,
+      completedSteps,
+      pendingApprovals,
+      startedAt: plan.createdAt.toISOString(),
+      lastCheckpoint: new Date().toISOString(),
+    };
+
+    await this.stateSaver.saveState(projectId, sessionId, state);
   }
 
   // ── Public API ───────────────────────────────────────────
@@ -181,6 +228,11 @@ export class TaskEngine {
           timestamp: new Date(),
         });
       }
+
+      // Persist final state
+      const projectId = plan.goalId;
+      const sessionId = plan.id;
+      await this.saveTaskState(plan, projectId, sessionId).catch(() => {});
     } catch (err) {
       plan.status = "paused";
       this.eventBus.publish({
@@ -310,11 +362,20 @@ export class TaskEngine {
     autoApprove: boolean,
     signal: AbortSignal,
   ): Promise<void> {
-    // First pass: handle tier-3 approval gates
     const approvalSteps = getApprovalRequiredSteps(plan);
     if (approvalSteps.length > 0 && !autoApprove) {
       for (const step of approvalSteps) {
         step.status = "awaiting_approval";
+        this.inboxManager.enqueue({
+          type: "approval",
+          payload: {
+            planId: plan.id,
+            stepId: step.id,
+            description: step.description,
+            tier: step.tier,
+            rationale: step.rationale,
+          },
+        });
         this.eventBus.publish({
           type: "approval:request",
           planId: plan.id,
@@ -329,11 +390,14 @@ export class TaskEngine {
         timestamp: new Date(),
       });
 
-      // Wait for approvals before continuing
+      // Persist state when approval is requested
+      const projectId = plan.goalId;
+      const sessionId = plan.id;
+      await this.saveTaskState(plan, projectId, sessionId).catch(() => {});
+
       await this.waitForApprovals(plan, approvalSteps, signal);
     }
 
-    // Process executable steps (tier 1/2)
     await this.processRemainingSteps(plan, signal);
   }
 
@@ -408,6 +472,34 @@ export class TaskEngine {
     });
 
     try {
+      // Check for loops before executing
+      const loopResult = this.loopDetector.detectLoop({ action: step.description, stepId: step.id });
+      if (loopResult.stuck) {
+        step.status = "completed";
+        step.completedAt = new Date();
+        step.result = {
+          stepId: step.id,
+          description: step.description,
+          tier: step.tier,
+          completedAt: new Date(),
+          skipped: true,
+          skipReason: `Skipped (loop detected): ${loopResult.suggestion}`,
+        };
+        this.coordinator.completeTask(taskId, step.result);
+        this.eventBus.publish({
+          type: "step:completed",
+          planId,
+          step: structuredClone(step),
+          timestamp: new Date(),
+        });
+        this.eventBus.publish({
+          type: "plan:updated",
+          plan: structuredClone(plan),
+          timestamp: new Date(),
+        });
+        return;
+      }
+
       // TODO: Replace with actual sub-agent execution via Gemma 4
       if (signal?.aborted) throw new Error("Aborted");
 
@@ -422,6 +514,11 @@ export class TaskEngine {
       step.result = result;
 
       this.coordinator.completeTask(taskId, result);
+
+      // Persist state checkpoint
+      const projectId = plan.goalId;
+      const sessionId = plan.id;
+      await this.saveTaskState(plan, projectId, sessionId).catch(() => {});
 
       this.eventBus.publish({
         type: "step:completed",

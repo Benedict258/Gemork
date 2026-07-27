@@ -1,5 +1,5 @@
 export interface LLMConfig {
-  provider: "ollama" | "llamacpp";
+  provider: "ollama" | "llamacpp" | "openai" | "anthropic";
   model: string;
   baseUrl: string;
   temperature?: number;
@@ -66,13 +66,26 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     maxTokens: 2048,
     timeoutMs: 120_000,
   },
+  openai: {
+    provider: "openai",
+    model: "gpt-4o",
+    baseUrl: "https://api.openai.com/v1",
+    temperature: 0.3,
+    maxTokens: 2048,
+    timeoutMs: 120_000,
+  },
+  anthropic: {
+    provider: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    baseUrl: "https://api.anthropic.com",
+    temperature: 0.3,
+    maxTokens: 2048,
+    timeoutMs: 120_000,
+  },
 };
 
 export function loadLLMConfig(overrides?: Partial<LLMConfig>): LLMConfig {
-  const provider = (overrides?.provider
-    ?? process.env.GEMORK_LLM_PROVIDER
-    ?? "ollama") as LLMConfig["provider"];
-
+  const provider = resolveProvider(overrides);
   const base = { ...DEFAULTS[provider] };
 
   const envModel = process.env.GEMORK_LLM_MODEL;
@@ -90,6 +103,20 @@ export function loadLLMConfig(overrides?: Partial<LLMConfig>): LLMConfig {
   if (envTimeout) base.timeoutMs = parseInt(envTimeout, 10);
 
   return { ...base, ...overrides };
+}
+
+function resolveProvider(overrides?: Partial<LLMConfig>): LLMConfig["provider"] {
+  if (overrides?.provider) return overrides.provider;
+
+  const env = process.env.GEMORK_LLM_PROVIDER;
+  if (env === "ollama" || env === "llamacpp" || env === "openai" || env === "anthropic") {
+    return env;
+  }
+
+  if (process.env.GEMORK_OPENAI_API_KEY) return "openai";
+  if (process.env.GEMORK_ANTHROPIC_API_KEY) return "anthropic";
+
+  return "ollama";
 }
 
 /**

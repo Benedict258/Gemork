@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ApprovalRequestEvent } from "../types";
+import type { ApprovalRequestEvent, InboxItem } from "../types";
 
 interface ApprovalModalProps {
   request: ApprovalRequestEvent;
+  inboxItems: InboxItem[];
   onApprove: () => void;
   onReject: (reason?: string) => void;
 }
 
-function ApprovalModal({ request, onApprove, onReject }: ApprovalModalProps) {
+function ApprovalModal({ request, inboxItems, onApprove, onReject }: ApprovalModalProps) {
   const { step } = request;
   const [loading, setLoading] = useState(false);
   const approveRef = useRef<HTMLButtonElement>(null);
+
+  const queuePosition = inboxItems.findIndex(
+    (item) => item.type === "approval" && (item.payload as any).stepId === step.id,
+  );
+  const totalApprovals = inboxItems.filter((item) => item.type === "approval").length;
+  const positionLabel =
+    queuePosition >= 0
+      ? `Approval ${queuePosition + 1} of ${totalApprovals}`
+      : "Approval Required";
 
   useEffect(() => {
     approveRef.current?.focus();
@@ -54,7 +64,7 @@ function ApprovalModal({ request, onApprove, onReject }: ApprovalModalProps) {
         aria-labelledby="modal-title"
       >
         <div className="modal-header">
-          <h2 id="modal-title">Approval Required</h2>
+          <h2 id="modal-title">{positionLabel}</h2>
           <span className={`modal-tier-badge ${tierBadgeClass}`}>
             Tier {step.tier}
           </span>
@@ -79,6 +89,13 @@ function ApprovalModal({ request, onApprove, onReject }: ApprovalModalProps) {
             <div className="modal-section">
               <span className="modal-section-label">Connector</span>
               <p>{step.connectorId}</p>
+            </div>
+          )}
+
+          {totalApprovals > 1 && (
+            <div className="modal-section modal-queue-info">
+              <span className="modal-section-label">Queue</span>
+              <p>{totalApprovals} approvals pending — processing one at a time</p>
             </div>
           )}
         </div>

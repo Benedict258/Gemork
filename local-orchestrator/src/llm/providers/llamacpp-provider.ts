@@ -3,9 +3,9 @@ import {
   type ChatMessage,
   type ChatOptions,
   type LLMResponse,
-} from "./provider.js";
-import type { LLMConfig } from "./config.js";
-import { parseToolCalls } from "./tool-parser.js";
+} from "../provider.js";
+import type { LLMConfig } from "../config.js";
+import { parseToolCalls } from "../tool-parser.js";
 
 export class LlamaCppProvider implements LLMProvider {
   private config: LLMConfig;

@@ -9,6 +9,9 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createErrorHandler, createAsyncHandler } from "./middleware/error-handler.js";
 import { createLogger } from "./middleware/logger.js";
 import { healthCheckHandler, createDefaultHealthChecks } from "./middleware/health-check.js";
+import { WorkflowStore, captureFromPlan, replayWorkflow } from "./workflows/index.js";
+import { Scheduler } from "./scheduling/scheduler.js";
+import { InboxManager } from "./inbox/inbox-manager.js";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const WS_PORT = parseInt(process.env.WS_PORT || "8081", 10);
@@ -23,6 +26,11 @@ const snapshots = new SnapshotService();
 const memory = new MemoryStore();
 const eventBus = taskEngine.getEventBus();
 const broadcaster = new EventBroadcaster();
+const workflowStore = new WorkflowStore();
+const scheduler = new Scheduler();
+
+const DEFAULT_PROJECT_ID = "default";
+const inboxManager = taskEngine.getInboxManager();
 
 // ── Health Checks ───────────────────────────────────────────
 
@@ -107,6 +115,177 @@ app.get(
   createAsyncHandler(async (req, res) => {
     const entries = await memory.queryByProject(req.params.projectId);
     res.json({ entries });
+  }),
+);
+
+// ── Workflow Endpoints ──────────────────────────────────────
+
+// GET /api/workflows — list workflows
+app.get(
+  "/api/workflows",
+  createAsyncHandler(async (_req, res) => {
+    const workflows = await workflowStore.listWorkflows(DEFAULT_PROJECT_ID);
+    res.json({ workflows });
+  }),
+);
+
+// POST /api/workflows — save current plan as workflow
+app.post(
+  "/api/workflows",
+  createAsyncHandler(async (req, res) => {
+    const { planId, name } = req.body;
+    if (!planId || typeof planId !== "string") {
+      res.status(400).json({ error: "planId is required" });
+      return;
+    }
+
+    const plan = taskEngine.getPlan(planId);
+    if (!plan) {
+      res.status(404).json({ error: "Plan not found" });
+      return;
+    }
+
+    const goal = taskEngine.getGoal(plan.goalId);
+    const goalText = goal?.text ?? "Unknown goal";
+
+    const captured = captureFromPlan(plan, goalText);
+    if (name && typeof name === "string") {
+      captured.name = name;
+    }
+
+    const id = await workflowStore.saveWorkflow(DEFAULT_PROJECT_ID, {
+      name: captured.name,
+      description: captured.description,
+      goal: captured.goal,
+      steps: captured.steps,
+    });
+
+    res.json({ id, workflow: await workflowStore.getWorkflow(DEFAULT_PROJECT_ID, id) });
+  }),
+);
+
+// POST /api/workflows/:id/replay — replay a workflow
+app.post(
+  "/api/workflows/:id/replay",
+  createAsyncHandler(async (req, res) => {
+    const result = await replayWorkflow(DEFAULT_PROJECT_ID, req.params.id);
+    if (!result) {
+      res.status(404).json({ error: "Workflow not found" });
+      return;
+    }
+
+    const runResult = await taskEngine.run({ goal: result.goalText });
+    res.json({ plan: runResult.plan });
+  }),
+);
+
+// ── Schedule Endpoints ──────────────────────────────────────
+
+// GET /api/schedules — list schedules
+app.get(
+  "/api/schedules",
+  createAsyncHandler(async (_req, res) => {
+    const schedules = scheduler.getSchedules();
+    res.json({ schedules });
+  }),
+);
+
+// POST /api/schedules — create schedule
+app.post(
+  "/api/schedules",
+  createAsyncHandler(async (req, res) => {
+    const { workflowId, goal, cron, enabled } = req.body;
+
+    if (!goal || typeof goal !== "string") {
+      res.status(400).json({ error: "goal is required" });
+      return;
+    }
+    if (!cron || typeof cron !== "string") {
+      res.status(400).json({ error: "cron is required (daily, weekly, hourly, every N hours, every N minutes)" });
+      return;
+    }
+
+    const id = await scheduler.schedule({
+      projectId: DEFAULT_PROJECT_ID,
+      workflowId,
+      goal,
+      cron: cron as any,
+      enabled: enabled !== false,
+    });
+
+    res.json({ id, schedule: scheduler.getSchedule(id) });
+  }),
+);
+
+// DELETE /api/schedules/:id — remove schedule
+app.delete(
+  "/api/schedules/:id",
+  createAsyncHandler(async (req, res) => {
+    const removed = await scheduler.unschedule(req.params.id);
+    if (!removed) {
+      res.status(404).json({ error: "Schedule not found" });
+      return;
+    }
+    res.json({ ok: true });
+  }),
+);
+
+// POST /api/schedules/:id/trigger — trigger immediately
+app.post(
+  "/api/schedules/:id/trigger",
+  createAsyncHandler(async (req, res) => {
+    const schedule = await scheduler.triggerSchedule(req.params.id);
+    if (!schedule) {
+      res.status(404).json({ error: "Schedule not found" });
+      return;
+    }
+
+    const runResult = await taskEngine.run({ goal: schedule.goal });
+    res.json({ schedule, plan: runResult.plan });
+  }),
+);
+
+// ── Inbox Endpoints ──────────────────────────────────────────
+
+// GET /api/inbox — list pending items
+app.get("/api/inbox", (_req, res) => {
+  const currentItem = inboxManager.getCurrentItem();
+  const stats = inboxManager.getStats();
+  res.json({ currentItem, stats });
+});
+
+// GET /api/inbox/stats — get queue stats
+app.get("/api/inbox/stats", (_req, res) => {
+  res.json(inboxManager.getStats());
+});
+
+// POST /api/inbox/:id/resolve — resolve an item with response
+app.post(
+  "/api/inbox/:id/resolve",
+  createAsyncHandler(async (req, res) => {
+    const { response } = req.body;
+    const item = inboxManager.getCurrentItem();
+    if (item && item.id === req.params.id && item.type === "approval") {
+      const approval = item.payload as any;
+      if (response?.approved) {
+        taskEngine.approveStep(approval.planId, approval.stepId);
+      } else {
+        taskEngine.rejectStep(approval.planId, approval.stepId, response?.reason);
+      }
+    }
+    inboxManager.resolve(req.params.id, response);
+    log.info("Inbox item resolved", { id: req.params.id });
+    res.json({ ok: true });
+  }),
+);
+
+// POST /api/inbox/:id/cancel — cancel an item
+app.post(
+  "/api/inbox/:id/cancel",
+  createAsyncHandler(async (req, res) => {
+    inboxManager.cancel(req.params.id);
+    log.info("Inbox item cancelled", { id: req.params.id });
+    res.json({ ok: true });
   }),
 );
 

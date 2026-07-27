@@ -7,14 +7,25 @@ const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
 
-const FILES = [
+const SRC_FILES = [
   'background.js',
-  'content.js',
   'popup.html',
   'popup.js',
   'types.js',
   'permission-gate.js',
 ];
+
+const ADAPTER_FILES = [
+  'adapters/index.js',
+  'adapters/generic.js',
+  'adapters/github.js',
+  'adapters/google.js',
+  'adapters/notion.js',
+  'adapters/slack.js',
+  'adapters/docs.js',
+];
+
+const CONTENT_FILE = 'content.js';
 
 const ROOT_FILES = ['manifest.json'];
 
@@ -59,7 +70,7 @@ function build() {
     }
   }
 
-  for (const file of FILES) {
+  for (const file of SRC_FILES) {
     const src = path.join(SRC, file);
     const dest = path.join(DIST, file);
     if (fs.existsSync(src)) {
@@ -68,6 +79,26 @@ function build() {
     } else {
       console.warn(`  SKIP src/${file} (not found)`);
     }
+  }
+
+  for (const file of ADAPTER_FILES) {
+    const src = path.join(SRC, file);
+    const dest = path.join(DIST, file);
+    if (fs.existsSync(src)) {
+      copyFile(src, dest);
+      console.log(`  src/${file}`);
+    } else {
+      console.warn(`  SKIP src/${file} (not found)`);
+    }
+  }
+
+  const contentSrc = path.join(SRC, CONTENT_FILE);
+  const contentDest = path.join(DIST, CONTENT_FILE);
+  if (fs.existsSync(contentSrc)) {
+    copyFile(contentSrc, contentDest);
+    console.log(`  src/${CONTENT_FILE}`);
+  } else {
+    console.warn(`  SKIP src/${CONTENT_FILE} (not found)`);
   }
 
   for (const file of ICON_FILES) {
