@@ -12,6 +12,7 @@ import { healthCheckHandler, createDefaultHealthChecks } from "./middleware/heal
 import { WorkflowStore, captureFromPlan, replayWorkflow } from "./workflows/index.js";
 import { Scheduler } from "./scheduling/scheduler.js";
 import { InboxManager } from "./inbox/inbox-manager.js";
+import { loadOrGenerateApiKey, createAuthMiddleware, verifyWsApiKey } from "./auth/persistent-auth.js";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const WS_PORT = parseInt(process.env.WS_PORT || "8081", 10);
@@ -60,19 +61,10 @@ app.use((_req, res, next) => {
   }
 });
 
-// API key auth (optional — set GEMORK_API_KEY env var to enable)
-const API_KEY = process.env.GEMORK_API_KEY;
-if (API_KEY) {
-  app.use("/api", (req, res, next) => {
-    // Skip auth for health check
-    if (req.path === "/health") return next();
-    const key = req.headers["x-api-key"] || req.query.key;
-    if (key !== API_KEY) {
-      return res.status(401).json({ error: "Unauthorized. Provide X-API-Key header." });
-    }
-    next();
-  });
-}
+// API key auth — persistent from .gemork/auth.json, overridable via GEMORK_API_KEY env var
+const API_KEY = process.env.GEMORK_API_KEY || loadOrGenerateApiKey();
+log.info("API key loaded", { key: API_KEY });
+app.use("/api", createAuthMiddleware(API_KEY));
 
 const httpServer = createServer(app);
 
@@ -332,20 +324,46 @@ const wss = new WebSocketServer({
   verifyClient: (info, callback) => {
     const origin = info.origin || info.req.headers.origin;
     // Allow connections from localhost, file:// (Tauri), and chrome-extension://
-    const allowed = !origin ||
+    const allowedOrigin = !origin ||
       origin.startsWith("http://localhost") ||
       origin.startsWith("http://127.0.0.1") ||
       origin.startsWith("file://") ||
       origin.startsWith("chrome-extension://");
-    if (!allowed) {
-      log.warn("WebSocket connection rejected", { origin });
+
+    if (!allowedOrigin) {
+      log.warn("WebSocket connection rejected (origin)", { origin });
+      callback(false);
+      return;
     }
-    callback(allowed);
+
+    // Check API key from query parameter
+    const key = info.req.url ? new URL(info.req.url, "http://localhost").searchParams.get("key") : null;
+    if (key !== API_KEY) {
+      log.warn("WebSocket connection rejected (auth)");
+      callback(false);
+      return;
+    }
+
+    callback(true);
   },
 });
 
 wss.on("connection", (ws) => {
   broadcaster.addClient(ws);
+
+  ws.on("message", async (raw) => {
+    try {
+      const msg = JSON.parse(String(raw));
+      if (msg.type === "voice:transcription" && typeof msg.text === "string" && msg.text.trim()) {
+        log.info("Voice transcription received", { textLength: msg.text.length });
+        const result = await taskEngine.run({ goal: msg.text });
+        ws.send(JSON.stringify({ type: "voice:ack", received: true, planId: result.plan?.id }));
+      }
+    } catch (err) {
+      log.warn("Failed to handle voice message", { error: String(err) });
+    }
+  });
+
   ws.on("close", () => broadcaster.removeClient(ws));
 });
 

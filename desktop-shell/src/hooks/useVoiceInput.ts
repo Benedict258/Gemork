@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseVoiceInputReturn {
   isListening: boolean;
@@ -134,6 +134,15 @@ export function useVoiceInput(): UseVoiceInputReturn {
     setIsListening(false);
     cleanup();
   }, [isListening, cleanup]);
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      cleanup();
+    };
+  }, [cleanup]);
 
   return {
     isListening,

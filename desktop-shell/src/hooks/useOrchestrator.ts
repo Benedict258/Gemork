@@ -59,6 +59,18 @@ async function getApiUrl(): Promise<string> {
   }
 }
 
+async function getApiKey(): Promise<string> {
+  try {
+    return await invoke<string>("get_api_key");
+  } catch {
+    // Fallback: try reading from localStorage in browser mode
+    if (typeof localStorage !== "undefined") {
+      return localStorage.getItem("gemork_api_key") || "";
+    }
+    return "";
+  }
+}
+
 export function useOrchestrator(): UseOrchestratorReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -164,8 +176,9 @@ export function useOrchestrator(): UseOrchestratorReturn {
 
     setConnected("reconnecting");
 
-    getWsUrl().then((wsUrl) => {
-      const ws = new WebSocket(wsUrl);
+    Promise.all([getWsUrl(), getApiKey()]).then(([wsUrl, key]) => {
+      const url = key ? `${wsUrl}?key=${encodeURIComponent(key)}` : wsUrl;
+      const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {

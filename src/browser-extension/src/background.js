@@ -11,12 +11,18 @@ const MessageType = {
 let currentMode = 'ask';
 let ws = null;
 let reconnectTimer = null;
+let apiKey = '';
 const WS_URL = 'ws://localhost:8081';
 
 function connectToOrchestrator() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
-  ws = new WebSocket(WS_URL);
+  if (!apiKey) {
+    console.log('[Gemork] No API key configured — waiting for user to set one');
+    return;
+  }
+
+  ws = new WebSocket(`${WS_URL}?key=${encodeURIComponent(apiKey)}`);
 
   ws.onopen = () => {
     console.log('[Gemork] Connected to orchestrator');
@@ -198,10 +204,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === 'set_api_key') {
+    apiKey = msg.apiKey || '';
+    chrome.storage.local.set({ apiKey });
+    // Reconnect with new key
+    if (ws) {
+      ws.close();
+    }
+    setTimeout(connectToOrchestrator, 500);
+    sendResponse({ ok: true });
+    return true;
+  }
+
   return false;
 });
 
-chrome.storage.local.get(['mode'], (data) => {
+chrome.storage.local.get(['mode', 'apiKey'], (data) => {
   currentMode = data.mode || 'ask';
+  apiKey = data.apiKey || '';
   connectToOrchestrator();
 });

@@ -132,6 +132,58 @@
       color: #64748b;
       cursor: not-allowed;
     }
+    .api-key-section {
+      margin-top: 12px;
+      padding: 12px;
+      background: #0f172a;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .api-key-section label {
+      display: block;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .api-key-row {
+      display: flex;
+      gap: 6px;
+    }
+    .api-key-row input {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #e0e0e0;
+      font-size: 12px;
+      font-family: monospace;
+      outline: none;
+    }
+    .api-key-row input:focus {
+      border-color: #2563eb;
+    }
+    .api-key-row button {
+      background: #2563eb;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .api-key-row button:hover {
+      background: #1d4ed8;
+    }
+    .api-key-hint {
+      font-size: 10px;
+      color: #475569;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -154,6 +206,15 @@
   <div class="input-row">
     <input type="text" id="userInput" placeholder="Ask Gemork anything..." />
     <button id="sendBtn">Send</button>
+  </div>
+
+  <div class="api-key-section">
+    <label>API Key</label>
+    <div class="api-key-row">
+      <input type="text" id="apiKeyInput" placeholder="Paste your API key..." />
+      <button id="saveApiKeyBtn">Save</button>
+    </div>
+    <div class="api-key-hint">Found in server startup logs or .gemork/auth.json</div>
   </div>
 
   <script src="popup.js"></script>

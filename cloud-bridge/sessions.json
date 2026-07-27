@@ -1,0 +1,37 @@
+[
+  {
+    "id": "1d2cbfb8-ee5e-4349-bbb5-a47e98e55daf",
+    "createdAt": 1785160567450,
+    "lastActivity": 1785160567450,
+    "connectedClients": 0,
+    "orchestratorConnected": false
+  },
+  {
+    "id": "64cafb32-fda2-45d8-a834-35b16abc39d4",
+    "createdAt": 1785160567458,
+    "lastActivity": 1785160567458,
+    "connectedClients": 0,
+    "orchestratorConnected": false
+  },
+  {
+    "id": "c40218c5-c9e0-4a3a-bfb2-9e6610026e64",
+    "createdAt": 1785160567496,
+    "lastActivity": 1785160567521,
+    "connectedClients": 0,
+    "orchestratorConnected": false
+  },
+  {
+    "id": "a673cf50-d55f-4fee-9ecc-4afe056bef24",
+    "createdAt": 1785160567546,
+    "lastActivity": 1785160567571,
+    "connectedClients": 0,
+    "orchestratorConnected": false
+  },
+  {
+    "id": "c88e196e-5d7e-4ef7-8b95-b602bad6ccf6",
+    "createdAt": 1785160567672,
+    "lastActivity": 1785160567672,
+    "connectedClients": 0,
+    "orchestratorConnected": false
+  }
+]

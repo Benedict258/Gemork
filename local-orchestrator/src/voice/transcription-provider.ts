@@ -1,7 +1,13 @@
 export interface TranscriptionProvider {
-  transcribe(audio: AudioBuffer): Promise<string>;
+  transcribe(audio: AudioBuffer | Float32Array, sampleRate?: number): Promise<string>;
   isAvailable(): Promise<boolean>;
 }
+
+import { GroqWhisperProvider } from "./groq-whisper.js";
+import { LocalWhisperProvider } from "./local-whisper.js";
+
+export { GroqWhisperProvider } from "./groq-whisper.js";
+export { LocalWhisperProvider } from "./local-whisper.js";
 
 const WHISPER_LOCAL_URL = "http://localhost:11434/api/transcribe";
 
@@ -55,7 +61,7 @@ export class WebSpeechFallbackProvider implements TranscriptionProvider {
     return new Promise((_, reject) => {
       reject(
         new Error(
-          "WebSpeechFallback is only available in browser context. Use WhisperLocalProvider for production.",
+          "WebSpeechFallback is only available in browser context. Use LocalWhisperProvider for production.",
         ),
       );
     });
@@ -67,18 +73,36 @@ export class WebSpeechFallbackProvider implements TranscriptionProvider {
 }
 
 async function resolveProvider(): Promise<TranscriptionProvider> {
-  const whisper = new WhisperLocalProvider();
-  if (await whisper.isAvailable()) {
-    return whisper;
+  // Priority 1: Groq whisper (fast, free tier, cloud)
+  const groq = new GroqWhisperProvider();
+  if (await groq.isAvailable()) {
+    console.log("[voice] Using Groq whisper (cloud, fast)");
+    return groq;
   }
 
+  // Priority 2: Local whisper via @xenova/transformers (on-device)
+  const localWhisper = new LocalWhisperProvider();
+  if (await localWhisper.isAvailable()) {
+    console.log("[voice] Using local Whisper (onnx)");
+    return localWhisper;
+  }
+
+  // Priority 3: Ollama whisper endpoint (if available)
+  const whisperOllama = new WhisperLocalProvider();
+  if (await whisperOllama.isAvailable()) {
+    console.log("[voice] Using Ollama whisper endpoint");
+    return whisperOllama;
+  }
+
+  // Priority 4: Web Speech API (browser only, fallback)
   const webSpeech = new WebSpeechFallbackProvider();
   if (await webSpeech.isAvailable()) {
+    console.log("[voice] Using WebSpeech API (fallback)");
     return webSpeech;
   }
 
   throw new Error(
-    "No transcription provider available. Start Ollama with whisper model.",
+    "No transcription provider available. Set GROQ_API_KEY env var for Groq whisper.",
   );
 }
 

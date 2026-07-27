@@ -5,29 +5,40 @@ import { DirtyJson } from "./dirty-json.js";
 import type { RagContext } from "../rag/rag-retriever.js";
 import { buildRagPromptSection } from "../rag/context-builder.js";
 
-const PLAN_SYSTEM_PROMPT = `You are a task planner for an autonomous AI agent called Gemork. Given a goal, decompose it into ordered steps.
+const PLAN_SYSTEM_PROMPT = `You are a precise task planner for Gemork, an autonomous AI agent. You decompose a user's goal into 3-7 concrete, actionable steps.
 
-Each step MUST include:
-- description: what this step does (concise, actionable)
-- tier: exactly 1, 2, or 3 (see rules below)
-- rationale: why this tier was chosen
-- connectorId (optional): which connector to use (e.g., "filesystem", "browser", "code")
+CRITICAL RULES — YOUR OUTPUT WILL BE REJECTED IF YOU VIOLATE THESE:
 
-TIER RULES:
-- Tier 1 (READ-ONLY): reading, searching, analyzing, planning, research, listing files, searching code
-- Tier 2 (REVERSIBLE): creating files, editing code, running dev tools, installing packages, reversible changes
-- Tier 3 (CRITICAL): deleting files, deploying, modifying production configs, irreversible changes, running rm, dropping databases
+1. EVERY step description MUST reference specific details from the goal text. Never use generic placeholders like "Analyze the goal", "Research", "Implement", or "Review". If the goal mentions Python, say "Write Python code using pandas to...". If it mentions a CSV, say "Read the CSV file using csv module or pandas". The user must recognize their goal in each step.
 
-Return ONLY a JSON array. No markdown, no explanation, no preamble.
+2. Steps must be in strict logical execution order — each step should be completable before the next one starts.
 
-Example format:
-[{"description":"Analyze the codebase structure","tier":1,"rationale":"Read-only analysis to understand scope","connectorId":"filesystem"},{"description":"Create the new module file","tier":2,"rationale":"Reversible file creation"}]
+3. Each step needs:
+   - description: 1-2 sentences naming the EXACT technology, file, or action from the goal
+   - tier: integer 1, 2, or 3
+   - rationale: one sentence explaining WHY this tier — must reference a concrete detail
+   - connectorId (optional): suggest a connector when obvious ("filesystem" for file ops, "browser" for web research, "code" for code execution)
 
-IMPORTANT:
-- Return ONLY the JSON array
-- Every step MUST have tier 1, 2, or 3
-- Do NOT wrap in markdown code blocks
-- Do NOT add any text before or after the JSON`;
+4. TIER CLASSIFICATION — classify based on WHAT THE STEP DOES:
+   - Tier 1 (READ-ONLY): reading files, searching code, web research, analyzing data, listing directories, grepping content — anything that only reads without modifying
+   - Tier 2 (REVERSIBLE WRITES): creating/editing files, writing code, generating output files, installing packages, running scripts that produce output — reversible with git/filesystem
+   - Tier 3 (IRREVERSIBLE): deleting files, dropping databases, deploying to production, running destructive commands, modifying system configs
+
+5. Connectors to suggest when relevant:
+   - "filesystem": reading/writing local files
+   - "browser": web research, fetching URLs
+   - "code": executing scripts, running commands
+   - "slack" / "notion" / "google-drive": external service integration
+
+OUTPUT FORMAT — return ONLY a JSON array, no markdown fences, no preamble, no explanation:
+
+[{"description":"Read the CSV file using pandas read_csv() to load the dataset into a DataFrame","tier":1,"rationale":"Read-only data loading — no modifications to the filesystem","connectorId":"filesystem"},{"description":"Write Python script using pandas groupby('region').mean() to calculate average revenue per region","tier":2,"rationale":"Creates a new Python file with analysis logic — reversible file write","connectorId":"code"}]
+
+REJECTION CRITERIA — your plan will be rejected if:
+- Fewer than 3 steps
+- Any step description starts with generic verbs: "Analyze", "Research", "Implement", "Review", "Test", "Verify", "Plan", "Set up", "Configure" without specific technology/goal context
+- Steps don't mention specific technologies, file types, or tools from the goal
+- Rationale is generic ("Read-only analysis") instead of referencing the goal's specifics`;
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
@@ -68,8 +79,10 @@ export class LLMPlanGeneratorImpl {
       : PLAN_SYSTEM_PROMPT;
 
     let lastError: Error | null = null;
+    // Total attempts: maxRetries for parse failures + 1 extra for generic rejection retry
+    const totalAttempts = this.config.maxRetries! + 1;
 
-    for (let attempt = 0; attempt <= this.config.maxRetries!; attempt++) {
+    for (let attempt = 0; attempt <= totalAttempts; attempt++) {
       try {
         const elapsed = Date.now() - startTime;
         const remaining = timeoutMs - elapsed;
@@ -81,13 +94,18 @@ export class LLMPlanGeneratorImpl {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(new Error(`Timeout after ${remaining}ms`)), remaining);
 
+        // On retry for generic plans, use a more explicit user prompt
+        const userContent = attempt > this.config.maxRetries!
+          ? `Goal: ${goal}\n\nREMINDER: You MUST reference specific technologies and details from the goal in every step. Generic steps like "Analyze the goal" or "Research" will be rejected. The goal text is: "${goal}"`
+          : `Goal: ${goal}`;
+
         const response = await this.provider.chat(
           [
             { role: "system", content: systemContent },
-            { role: "user", content: `Goal: ${goal}` },
+            { role: "user", content: userContent },
           ],
           {
-            temperature: 0.3,
+            temperature: attempt > this.config.maxRetries! ? 0.1 : 0.3,
             topP: 0.9,
             signal: controller.signal,
           },
@@ -99,13 +117,26 @@ export class LLMPlanGeneratorImpl {
         console.log(`[plan-generator] LLM responded in ${elapsed2}ms (attempt ${attempt + 1})`);
 
         const steps = parsePlanOutput(response);
-        if (steps.length > 0) {
-          console.log(`[plan-generator] Parsed ${steps.length} steps from LLM output`);
-          return steps;
+        if (steps.length === 0) {
+          console.warn(`[plan-generator] No valid steps parsed from LLM output (attempt ${attempt + 1})`);
+          lastError = new Error("No valid steps parsed from LLM output");
+          continue;
         }
 
-        console.warn(`[plan-generator] No valid steps parsed from LLM output (attempt ${attempt + 1})`);
-        lastError = new Error("No valid steps parsed from LLM output");
+        // Validate plan quality: check for generic steps
+        const validation = this.validatePlanQuality(steps, goal);
+        if (!validation.valid) {
+          console.warn(`[plan-generator] Plan failed quality check: ${validation.reason} (attempt ${attempt + 1})`);
+          if (attempt < totalAttempts) {
+            lastError = new Error(`Generic plan: ${validation.reason}`);
+            continue;
+          }
+          // Last attempt — return what we have, even if generic
+          console.warn(`[plan-generator] Returning plan despite quality issues (exhausted retries)`);
+        }
+
+        console.log(`[plan-generator] Parsed ${steps.length} steps from LLM output`);
+        return steps;
       } catch (err) {
         const elapsed = Date.now() - startTime;
         const error = err instanceof Error ? err : new Error(String(err));
@@ -116,7 +147,7 @@ export class LLMPlanGeneratorImpl {
         if (elapsed >= timeoutMs) break;
 
         // Wait before retry
-        if (attempt < this.config.maxRetries!) {
+        if (attempt < totalAttempts) {
           await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
         }
       }
@@ -128,22 +159,105 @@ export class LLMPlanGeneratorImpl {
     return this.defaultPlan(goal, reason);
   }
 
+  private validatePlanQuality(steps: LLMPlanOutput[], goal: string): { valid: boolean; reason: string } {
+    // Reject plans with fewer than 3 steps
+    if (steps.length < 3) {
+      return { valid: false, reason: `Only ${steps.length} step(s) — need at least 3` };
+    }
+
+    // Generic verb prefixes that indicate vague, low-quality steps
+    const genericVerbs = [
+      /^analyze\b/i,
+      /^research\b/i,
+      /^implement\b/i,
+      /^review\b/i,
+      /^test\b/i,
+      /^verify\b/i,
+      /^plan\b/i,
+      /^set\s*up\b/i,
+      /^configure\b/i,
+      /^gather\b/i,
+      /^identify\b/i,
+      /^determine\b/i,
+      /^assess\b/i,
+      /^evaluate\b/i,
+      /^consider\b/i,
+      /^understand\b/i,
+      /^explore\b/i,
+      /^prepare\b/i,
+    ];
+
+    // Extract key terms from the goal (words > 3 chars, lowercased)
+    const goalTerms = goal
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+
+    const genericSteps: string[] = [];
+    const stepsWithoutGoalTerms: string[] = [];
+
+    for (const step of steps) {
+      const desc = step.description.toLowerCase();
+
+      // Check for generic verb start
+      const isGenericVerb = genericVerbs.some((re) => re.test(step.description.trim()));
+      // Check if description contains meaningful goal-specific terms
+      const hasGoalTerms = goalTerms.some((term) => desc.includes(term));
+
+      if (isGenericVerb && !hasGoalTerms) {
+        genericSteps.push(step.description);
+      }
+      if (!hasGoalTerms) {
+        stepsWithoutGoalTerms.push(step.description);
+      }
+    }
+
+    if (genericSteps.length > 0) {
+      return {
+        valid: false,
+        reason: `${genericSteps.length} generic step(s): "${genericSteps[0]}" — must reference specific goal details`,
+      };
+    }
+
+    if (stepsWithoutGoalTerms.length === steps.length) {
+      return {
+        valid: false,
+        reason: "No steps reference specific terms from the goal",
+      };
+    }
+
+    return { valid: true, reason: "" };
+  }
+
   private defaultPlan(goal: string, reason: string): LLMPlanOutput[] {
+    // Extract key terms from goal to make fallback more specific
+    const keyTerms = goal
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .slice(0, 5)
+      .join(", ");
+
+    const displayGoal = keyTerms || goal.slice(0, 80);
+
     return [
       {
-        description: `Analyze goal: ${goal}`,
+        description: `Examine existing files and resources related to: ${displayGoal}`,
         tier: 1 as StepTier,
-        rationale: `Read-only analysis (fallback: ${reason})`,
+        rationale: `Read-only exploration to understand current state (fallback: ${reason})`,
+        connectorId: "filesystem",
       },
       {
-        description: "Identify required resources and files",
-        tier: 1 as StepTier,
-        rationale: "Gather context before making changes",
-      },
-      {
-        description: "Implement the requested changes",
+        description: `Implement the core logic for: ${displayGoal}`,
         tier: 2 as StepTier,
-        rationale: "Reversible implementation based on analysis",
+        rationale: "Reversible implementation — creates/modifies files as needed",
+        connectorId: "code",
+      },
+      {
+        description: `Verify the implementation works correctly for: ${displayGoal}`,
+        tier: 1 as StepTier,
+        rationale: "Read-only validation of the output",
       },
     ];
   }

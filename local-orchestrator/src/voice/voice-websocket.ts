@@ -1,4 +1,4 @@
-const WS_URL = "ws://localhost:8080";
+const WS_URL = "ws://localhost:8081";
 const RECONNECT_DELAY = 3000;
 
 interface VoiceTranscriptionMessage {

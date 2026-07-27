@@ -7,3 +7,4 @@ export {
   type ModuleHealth,
   type HealthChecker,
 } from "./health-check.js";
+export { generateApiKey, loadOrGenerateApiKey, createAuthMiddleware, verifyWsApiKey } from "../auth/persistent-auth.js";

@@ -19,6 +19,8 @@ const modeLabel = document.getElementById('modeLabel');
 const responses = document.getElementById('responses');
 const userInput = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
+const apiKeyInput = document.getElementById('apiKeyInput');
+const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
 
 function updateUI() {
   askBtn.className = 'mode-btn' + (currentMode === 'ask' ? ' active-ask' : '');
@@ -55,6 +57,17 @@ userInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') send();
 });
 
+saveApiKeyBtn.addEventListener('click', () => {
+  const key = apiKeyInput.value.trim();
+  if (!key) return;
+  chrome.runtime.sendMessage({ type: 'set_api_key', apiKey: key });
+  apiKeyInput.value = '';
+  apiKeyInput.placeholder = 'Key saved!';
+  setTimeout(() => {
+    apiKeyInput.placeholder = 'Paste your API key...';
+  }, 2000);
+});
+
 function send() {
   const text = userInput.value.trim();
   if (!text) return;
@@ -80,8 +93,9 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-chrome.storage.local.get(['mode', 'connected'], (data) => {
+chrome.storage.local.get(['mode', 'connected', 'apiKey'], (data) => {
   if (data.mode) currentMode = data.mode;
   if (typeof data.connected === 'boolean') connected = data.connected;
+  if (data.apiKey) apiKeyInput.placeholder = 'Key configured (click to change)';
   updateUI();
 });

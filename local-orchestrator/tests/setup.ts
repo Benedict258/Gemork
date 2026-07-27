@@ -5,6 +5,7 @@ import { vi } from "vitest";
 import type { LLMProvider, LLMResponse, ChatMessage, ChatOptions } from "../src/llm/provider.js";
 import type { LLMPlanOutput } from "../src/orchestrator/task-engine.js";
 import type { StepTier } from "../src/orchestrator/plan.js";
+import type { RagContext } from "../src/rag/rag-retriever.js";
 
 // ─── Mock LLM Provider ──────────────────────────────────────
 
@@ -49,9 +50,15 @@ export function createMockPlanGenerator(planSteps?: LLMPlanOutput[]) {
     { description: "Update production config", tier: 3 as StepTier, rationale: "Critical change" },
   ];
 
+  let lastRagContext: RagContext | undefined;
+
   return {
-    async generatePlan(_goal: string): Promise<LLMPlanOutput[]> {
+    async generatePlan(_goal: string, ragContext?: RagContext): Promise<LLMPlanOutput[]> {
+      lastRagContext = ragContext;
       return steps;
+    },
+    getLastRagContext(): RagContext | undefined {
+      return lastRagContext;
     },
   };
 }
