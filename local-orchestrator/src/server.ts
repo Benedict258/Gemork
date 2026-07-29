@@ -14,7 +14,7 @@ import { Scheduler } from "./scheduling/scheduler.js";
 import { InboxManager } from "./inbox/inbox-manager.js";
 import { loadOrGenerateApiKey, createAuthMiddleware, verifyWsApiKey } from "./auth/persistent-auth.js";
 
-const PORT = parseInt(process.env.PORT || "3001", 10);
+const PORT = parseInt(process.env.PORT || "5180", 10);
 const WS_PORT = parseInt(process.env.WS_PORT || "8081", 10);
 
 const log = createLogger("server");
@@ -320,21 +320,12 @@ app.use(errorHandler);
 // ── WebSocket Server ────────────────────────────────────────
 
 const wss = new WebSocketServer({
-  port: WS_PORT,
+  server: httpServer,
   verifyClient: (info, callback) => {
     const origin = info.origin || info.req.headers.origin;
     // Allow connections from localhost, file:// (Tauri), and chrome-extension://
-    const allowedOrigin = !origin ||
-      origin.startsWith("http://localhost") ||
-      origin.startsWith("http://127.0.0.1") ||
-      origin.startsWith("file://") ||
-      origin.startsWith("chrome-extension://");
-
-    if (!allowedOrigin) {
-      log.warn("WebSocket connection rejected (origin)", { origin });
-      callback(false);
-      return;
-    }
+    // Allow connections from any origin (cross-network access)
+    // Auth is handled by API key check below
 
     // Check API key from query parameter
     const key = info.req.url ? new URL(info.req.url, "http://localhost").searchParams.get("key") : null;
