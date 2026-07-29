@@ -12,7 +12,7 @@ let currentMode = 'ask';
 let ws = null;
 let reconnectTimer = null;
 let apiKey = '';
-const WS_URL = 'ws://localhost:8081';
+const WS_URL = 'ws://10.0.0.246:8081';
 
 function connectToOrchestrator() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
