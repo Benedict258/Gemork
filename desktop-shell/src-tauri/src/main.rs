@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-const ORCHESTRATOR_HTTP: &str = "http://152.67.149.134:5180";
-const ORCHESTRATOR_WS: &str = "ws://152.67.149.134:5180";
+const ORCHESTRATOR_HTTP: &str = "http://localhost:5180";
+const ORCHESTRATOR_WS: &str = "ws://localhost:5180";
 const API_KEY: &str = "98124815fa577417ef8a419a61dfddb8";
 
 #[derive(Debug, Serialize, Deserialize)]
