@@ -29,9 +29,9 @@ interface UseOrchestratorReturn {
   refreshInbox: () => void;
   reconnect: () => void;
 }
-const WS_URL_FALLBACK = "ws://152.67.149.134:8081";
+const WS_URL_FALLBACK = "ws://152.67.149.134:5180";
 
-const API_URL_FALLBACK = "http://152.67.149.134:3030";
+const API_URL_FALLBACK = "http://152.67.149.134:5180";
 const RECONNECT_DELAY = 3000;
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
