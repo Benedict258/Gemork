@@ -55,7 +55,7 @@ const DEFAULTS: Record<LLMConfig["provider"], LLMConfig> = {
     temperature: 0.3,
     topP: 0.9,
     maxTokens: 2048,
-    timeoutMs: 300_000,
+    timeoutMs: 600_000,
   },
   llamacpp: {
     provider: "llamacpp",
@@ -130,7 +130,7 @@ function resolveProvider(overrides?: Partial<LLMConfig>): LLMConfig["provider"] 
   if (process.env.GEMORK_OPENAI_API_KEY) return "openai";
   if (process.env.GEMORK_ANTHROPIC_API_KEY) return "anthropic";
 
-  return "gemini";
+  return "ollama";
 }
 
 /**
