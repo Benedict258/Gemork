@@ -660,7 +660,6 @@ Return ONLY the JSON tool call. Example: {"tool":"open_application","args":{"app
 
   private parseToolCall(content: string): { tool: string; args: Record<string, string> } | null {
     try {
-      // Try to find JSON object in response
       const match = content.match(/\{[^{}]*"tool"\s*:\s*"[^"]*"[^{}]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
@@ -668,16 +667,9 @@ Return ONLY the JSON tool call. Example: {"tool":"open_application","args":{"app
       }
     } catch {}
 
-    // Try DirtyJson
-    try {
-      const { DirtyJson } = await import("../llm/dirty-json.js");
-      const parsed = DirtyJson.parseString(content);
-      if (parsed && parsed.tool && parsed.args) return parsed;
-    } catch {}
-
     // Fallback: try to detect intent from text
     const lower = content.toLowerCase();
-    if (lower.includes("notepad") || lower.includes("open")) {
+    if (lower.includes("notepad") || lower.includes("open notepad")) {
       return { tool: "open_application", args: { appName: "notepad" } };
     }
     if (lower.includes("chrome") || lower.includes("browser")) {
