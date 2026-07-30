@@ -130,7 +130,7 @@ function resolveProvider(overrides?: Partial<LLMConfig>): LLMConfig["provider"] 
   if (process.env.GEMORK_OPENAI_API_KEY) return "openai";
   if (process.env.GEMORK_ANTHROPIC_API_KEY) return "anthropic";
 
-  return "ollama";
+  return "gemini";
 }
 
 /**
