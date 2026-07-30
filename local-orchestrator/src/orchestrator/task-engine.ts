@@ -606,22 +606,48 @@ export class TaskEngine {
   ): Promise<unknown> {
     const provider = createLLMProvider();
 
+    // Ask LLM what tool to use for this step
     const messages = [
       {
         role: "system" as const,
-        content: "You are a sub-agent executing a task. Be concise and direct.",
+        content: `You are executing a task on the user's desktop. Based on the step description, decide which tool to use and return a JSON object with the tool call.
+
+Available tools:
+- open_application: {"tool":"open_application","args":{"appName":"notepad"}}
+- execute_command: {"tool":"execute_command","args":{"command":"dir"}}
+- write_file: {"tool":"write_file","args":{"filePath":"test.txt","content":"Hello"}}
+- read_file: {"tool":"read_file","args":{"filePath":"test.txt"}}
+- list_directory: {"tool":"list_directory","args":{"path":"."}}
+
+Return ONLY the JSON tool call. Example: {"tool":"open_application","args":{"appName":"notepad"}}`,
       },
       {
         role: "user" as const,
-        content: `Execute this task and return the result: ${step.description}`,
+        content: `Execute: ${step.description}`,
       },
     ];
 
     const response = await provider.chat(messages, {
-      temperature: 0.3,
-      maxTokens: 512,
+      temperature: 0.1,
+      maxTokens: 256,
       signal,
     });
+
+    // Parse tool call from response
+    const toolCall = this.parseToolCall(response.content);
+
+    if (toolCall) {
+      const result = await this.executeTool(toolCall);
+      return {
+        stepId: step.id,
+        description: step.description,
+        tier: step.tier,
+        completedAt: new Date(),
+        tool: toolCall.tool,
+        args: toolCall.args,
+        result,
+      };
+    }
 
     return {
       stepId: step.id,
@@ -629,8 +655,82 @@ export class TaskEngine {
       tier: step.tier,
       completedAt: new Date(),
       output: response.content,
-      usage: response.usage,
     };
+  }
+
+  private parseToolCall(content: string): { tool: string; args: Record<string, string> } | null {
+    try {
+      // Try to find JSON object in response
+      const match = content.match(/\{[^{}]*"tool"\s*:\s*"[^"]*"[^{}]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (parsed.tool && parsed.args) return parsed;
+      }
+    } catch {}
+
+    // Try DirtyJson
+    try {
+      const { DirtyJson } = await import("../llm/dirty-json.js");
+      const parsed = DirtyJson.parseString(content);
+      if (parsed && parsed.tool && parsed.args) return parsed;
+    } catch {}
+
+    // Fallback: try to detect intent from text
+    const lower = content.toLowerCase();
+    if (lower.includes("notepad") || lower.includes("open")) {
+      return { tool: "open_application", args: { appName: "notepad" } };
+    }
+    if (lower.includes("chrome") || lower.includes("browser")) {
+      return { tool: "open_application", args: { appName: "chrome" } };
+    }
+
+    return null;
+  }
+
+  private async executeTool(toolCall: { tool: string; args: Record<string, string> }): Promise<string> {
+    const { execSync } = await import("child_process");
+    const isWindows = process.platform === "win32";
+
+    try {
+      switch (toolCall.tool) {
+        case "open_application": {
+          const app = toolCall.args.appName || toolCall.args.app;
+          if (isWindows) {
+            execSync(`cmd /c start "" "${app}"`, { timeout: 5000, stdio: "ignore" });
+          } else {
+            execSync(`open -a "${app}"`, { timeout: 5000, stdio: "ignore" });
+          }
+          return `Opened ${app}`;
+        }
+        case "execute_command": {
+          const cmd = toolCall.args.command;
+          const output = execSync(cmd, { encoding: "utf-8", timeout: 30000 });
+          return output.substring(0, 1000);
+        }
+        case "write_file": {
+          const fs = await import("fs/promises");
+          const path = await import("path");
+          const fullPath = path.resolve(process.cwd(), toolCall.args.filePath);
+          await fs.mkdir(path.dirname(fullPath), { recursive: true });
+          await fs.writeFile(fullPath, toolCall.args.content || "");
+          return `Written to ${fullPath}`;
+        }
+        case "read_file": {
+          const fs = await import("fs/promises");
+          const content = await fs.readFile(toolCall.args.filePath, "utf-8");
+          return content.substring(0, 1000);
+        }
+        case "list_directory": {
+          const fs = await import("fs/promises");
+          const entries = await fs.readdir(toolCall.args.path || ".");
+          return entries.join("\n");
+        }
+        default:
+          return `Unknown tool: ${toolCall.tool}`;
+      }
+    } catch (e: any) {
+      return `Error: ${e.message}`;
+    }
   }
 
   // ── Approval Waiting ─────────────────────────────────────
