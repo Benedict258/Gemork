@@ -65,6 +65,7 @@ app.use((_req, res, next) => {
 const API_KEY = process.env.GEMORK_API_KEY || "dd8168e51c495feeb21733c29d89b12c";
 
 log.info("API key loaded", { key: API_KEY });
+log.info("Gemini key loaded", { key: process.env.GEMINI_API_KEY ? "SET" : "NOT SET" });
 
 app.use("/api", createAuthMiddleware(API_KEY));
 const httpServer = createServer(app);
