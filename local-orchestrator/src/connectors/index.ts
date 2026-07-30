@@ -3,6 +3,8 @@ export type { IConnector, ConnectorResult, ConnectorScope } from "./base-connect
 export { FilesystemConnector } from "./filesystem-connector.js";
 export type { FilesystemConnectorConfig } from "./filesystem-connector.js";
 
+export { DesktopConnector } from "./desktop-connector.js";
+
 export { GoogleDriveConnector } from "./google-drive-connector.js";
 export type { GoogleDriveConnectorConfig } from "./google-drive-connector.js";
 

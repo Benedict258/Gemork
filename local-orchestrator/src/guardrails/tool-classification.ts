@@ -17,7 +17,11 @@ export type ToolName =
   | "external_api"
   | "connector_read"
   | "connector_write"
-  | "connector_delete";
+  | "connector_delete"
+  | "execute_command"
+  | "open_application"
+  | "open_file"
+  | "list_directory";
 
 export interface ToolClassification {
   tool: ToolName;
@@ -42,6 +46,10 @@ const TOOL_CLASSIFICATIONS: ToolClassification[] = [
   { tool: "move_file", tier: 2, description: "Move/rename a file" },
   { tool: "copy_file", tier: 2, description: "Copy a file" },
   { tool: "connector_write", tier: 2, description: "Write via external connector" },
+  { tool: "execute_command", tier: 2, description: "Execute a shell command on the desktop" },
+  { tool: "open_application", tier: 2, description: "Open an application on the desktop" },
+  { tool: "open_file", tier: 2, description: "Open a file with its default application" },
+  { tool: "list_directory", tier: 1, description: "List files in a directory" },
 
   // Tier 3 — Critical / irreversible, always ask
   { tool: "send_message", tier: 3, description: "Send message to user or service" },
