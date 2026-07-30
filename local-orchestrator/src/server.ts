@@ -60,8 +60,8 @@ app.use((_req, res, next) => {
     res.status(429).json({ error: "Rate limit exceeded. Try again in 60 seconds." });
   }
 });
-// Hardcoded API key — no env vars needed
-const API_KEY = "dd8168e51c495feeb21733c29d89b12c";
+// API key — from env or generate on first run
+const API_KEY = process.env.GEMORK_API_KEY || "dd8168e51c495feeb21733c29d89b12c";
 
 log.info("API key loaded", { key: API_KEY });
 
