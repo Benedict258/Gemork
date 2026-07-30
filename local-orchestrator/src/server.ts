@@ -60,12 +60,12 @@ app.use((_req, res, next) => {
     res.status(429).json({ error: "Rate limit exceeded. Try again in 60 seconds." });
   }
 });
+// Hardcoded API key — no env vars needed
+const API_KEY = "dd8168e51c495feeb21733c29d89b12c";
 
-// API key auth — persistent from .gemork/auth.json, overridable via GEMORK_API_KEY env var
-const API_KEY = process.env.GEMORK_API_KEY || loadOrGenerateApiKey();
 log.info("API key loaded", { key: API_KEY });
-app.use("/api", createAuthMiddleware(API_KEY));
 
+app.use("/api", createAuthMiddleware(API_KEY));
 const httpServer = createServer(app);
 
 const errorHandler = createErrorHandler(log);

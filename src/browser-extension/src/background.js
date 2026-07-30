@@ -11,8 +11,9 @@ const MessageType = {
 let currentMode = 'ask';
 let ws = null;
 let reconnectTimer = null;
-let apiKey = '';
+let apiKey = HARDCODED_API_KEY;
 const WS_URL = 'ws://localhost:5180';
+const HARDCODED_API_KEY = 'dd8168e51c495feeb21733c29d89b12c';
 
 function connectToOrchestrator() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
