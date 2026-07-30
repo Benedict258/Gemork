@@ -15,10 +15,6 @@ RULES:
 OUTPUT: ONLY the JSON array. Nothing else. No explanation, no preamble.
 
 Example: [{"description":"Open Notepad from Start menu","tier":2,"rationale":"Opens an application on desktop"}]`;
-- Fewer than 3 steps
-- Any step description starts with generic verbs: "Analyze", "Research", "Implement", "Review", "Test", "Verify", "Plan", "Set up", "Configure" without specific technology/goal context
-- Steps don't mention specific technologies, file types, or tools from the goal
-- Rationale is generic ("Read-only analysis") instead of referencing the goal's specifics`;
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
