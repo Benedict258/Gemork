@@ -11,7 +11,7 @@ export class GeminiProvider implements LLMProvider {
   private baseUrl = "https://generativelanguage.googleapis.com/v1beta";
 
   constructor(apiKey?: string, model?: string) {
-    this.apiKey = apiKey || process.env.GEMINI_API_KEY || "AQ.Ab8RN6K_pPAviw5Yldi1cEUp0ph6Wq__vYEbtoH_kK9-PB-wzA";
+    this.apiKey = apiKey || process.env.GEMINI_API_KEY || "AQ.Ab8RN6KZR-U3zO7rfmed0LTYENATVye_Z4apCtC9DC6AAf9K4g";
     this.model = model || process.env.GEMINI_MODEL || "gemma-4-26b-a4b-it";
   }
 
