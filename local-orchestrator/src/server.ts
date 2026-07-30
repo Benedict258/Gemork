@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import { createServer } from "http";
 import { TaskEngine } from "./orchestrator/task-engine.js";
@@ -65,7 +66,7 @@ app.use((_req, res, next) => {
 const API_KEY = process.env.GEMORK_API_KEY || "dd8168e51c495feeb21733c29d89b12c";
 
 log.info("API key loaded", { key: API_KEY });
-log.info("Gemini key loaded", { key: process.env.GEMINI_API_KEY ? "SET" : "NOT SET" });
+log.info("Gemini key", { key: process.env.GEMINI_API_KEY ? `SET (${process.env.GEMINI_API_KEY.substring(0,10)}...)` : "NOT SET" });
 
 app.use("/api", createAuthMiddleware(API_KEY));
 const httpServer = createServer(app);
