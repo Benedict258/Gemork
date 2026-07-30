@@ -138,7 +138,7 @@ export class LLMPlanGeneratorImpl {
   private validatePlanQuality(steps: LLMPlanOutput[], goal: string): { valid: boolean; reason: string } {
     // Reject plans with fewer than 3 steps
     if (steps.length < 3) {
-      return { valid: false, reason: `Only ${steps.length} step(s) — need at least 3` };
+      return { valid: false, reason: `Only ${steps.length} step(s) — need at least 1` };
     }
 
     // Generic verb prefixes that indicate vague, low-quality steps
