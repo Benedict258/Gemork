@@ -5,36 +5,16 @@ import { DirtyJson } from "./dirty-json.js";
 import type { RagContext } from "../rag/rag-retriever.js";
 import { buildRagPromptSection } from "../rag/context-builder.js";
 
-const PLAN_SYSTEM_PROMPT = `You are a precise task planner for Gemork, an autonomous AI agent. You decompose a user's goal into 3-7 concrete, actionable steps.
+const PLAN_SYSTEM_PROMPT = `You are a task planner. Given a goal, output steps as a JSON array.
 
-CRITICAL RULES — YOUR OUTPUT WILL BE REJECTED IF YOU VIOLATE THESE:
+RULES:
+1. Each step MUST reference the goal's specific details (not generic)
+2. Tier 1 = read-only, Tier 2 = reversible write, Tier 3 = irreversible
+3. Include "description", "tier", and "rationale" for each step
 
-1. EVERY step description MUST reference specific details from the goal text. Never use generic placeholders like "Analyze the goal", "Research", "Implement", or "Review". If the goal mentions Python, say "Write Python code using pandas to...". If it mentions a CSV, say "Read the CSV file using csv module or pandas". The user must recognize their goal in each step.
+OUTPUT: ONLY the JSON array. Nothing else. No explanation, no preamble.
 
-2. Steps must be in strict logical execution order — each step should be completable before the next one starts.
-
-3. Each step needs:
-   - description: 1-2 sentences naming the EXACT technology, file, or action from the goal
-   - tier: integer 1, 2, or 3
-   - rationale: one sentence explaining WHY this tier — must reference a concrete detail
-   - connectorId (optional): suggest a connector when obvious ("filesystem" for file ops, "browser" for web research, "code" for code execution)
-
-4. TIER CLASSIFICATION — classify based on WHAT THE STEP DOES:
-   - Tier 1 (READ-ONLY): reading files, searching code, web research, analyzing data, listing directories, grepping content — anything that only reads without modifying
-   - Tier 2 (REVERSIBLE WRITES): creating/editing files, writing code, generating output files, installing packages, running scripts that produce output — reversible with git/filesystem
-   - Tier 3 (IRREVERSIBLE): deleting files, dropping databases, deploying to production, running destructive commands, modifying system configs
-
-5. Connectors to suggest when relevant:
-   - "filesystem": reading/writing local files
-   - "browser": web research, fetching URLs
-   - "code": executing scripts, running commands
-   - "slack" / "notion" / "google-drive": external service integration
-
-OUTPUT FORMAT — return ONLY a JSON array, no markdown fences, no preamble, no explanation:
-
-[{"description":"Read the CSV file using pandas read_csv() to load the dataset into a DataFrame","tier":1,"rationale":"Read-only data loading — no modifications to the filesystem","connectorId":"filesystem"},{"description":"Write Python script using pandas groupby('region').mean() to calculate average revenue per region","tier":2,"rationale":"Creates a new Python file with analysis logic — reversible file write","connectorId":"code"}]
-
-REJECTION CRITERIA — your plan will be rejected if:
+Example: [{"description":"Open Notepad from Start menu","tier":2,"rationale":"Opens an application on desktop"}]`;
 - Fewer than 3 steps
 - Any step description starts with generic verbs: "Analyze", "Research", "Implement", "Review", "Test", "Verify", "Plan", "Set up", "Configure" without specific technology/goal context
 - Steps don't mention specific technologies, file types, or tools from the goal
@@ -333,10 +313,21 @@ export function parsePlanOutput(response: LLMResponse): LLMPlanOutput[] {
 
 function extractStepsViaRegex(content: string): LLMPlanOutput[] {
   const steps: LLMPlanOutput[] = [];
-  // Match objects with description and tier fields
-  const stepRegex = /\{[^{}]*"(?:description|step|action)"\s*:\s*"[^"]*"[^{}]*"(?:tier|level|priority)"\s*:\s*[123][^{}]*\}/gi;
-  let match: RegExpExecArray | null;
 
+  // Pattern 1: Match "Step N: Description" followed by tier/rationale
+  const stepBlockRegex = /(?:Step\s+\d+|^\s*\*?\*?Step\s+\d+)[\s\S]*?(?:Description|Action)[\s:]+([^\n]+)[\s\S]*?(?:Tier|Level)[\s:]+(\d)[\s\S]*?(?:Rationale|Reason)[\s:]+([^\n]+)/gim;
+  let match: RegExpExecArray | null;
+  while ((match = stepBlockRegex.exec(content)) !== null) {
+    steps.push({
+      description: match[1].trim(),
+      tier: normalizeTier(match[2]),
+      rationale: match[3].trim(),
+    });
+  }
+  if (steps.length > 0) return steps;
+
+  // Pattern 2: Match objects with description and tier fields
+  const stepRegex = /\{[^{}]*"(?:description|step|action)"\s*:\s*"[^"]*"[^{}]*"(?:tier|level|priority)"\s*:\s*[123][^{}]*\}/gi;
   while ((match = stepRegex.exec(content)) !== null) {
     try {
       const parsed = DirtyJson.parseString(match[0]);
@@ -345,6 +336,16 @@ function extractStepsViaRegex(content: string): LLMPlanOutput[] {
         if (steps1.length > 0) steps.push(steps1[0]);
       }
     } catch {}
+  }
+
+  // Pattern 3: Match "Description: X. Tier: Y. Rationale: Z."
+  const descRegex = /Description:\s*([^\n.]+)[\.\n].*?Tier:\s*(\d).*?Rationale:\s*([^\n.]+)/gis;
+  while ((match = descRegex.exec(content)) !== null) {
+    steps.push({
+      description: match[1].trim(),
+      tier: normalizeTier(match[2]),
+      rationale: match[3].trim(),
+    });
   }
 
   return steps;
